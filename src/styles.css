@@ -767,11 +767,13 @@ input:focus, select:focus, textarea:focus {
 
 .btn-tool.paused {
     background: var(--status-warning);
-    color: white;
+    color: var(--accent-primary);
 }
 
-.btn-tool.paused i::before {
-    content: "\f04b"; /* fa-play */
+.btn-tool.paused:hover {
+    background: var(--status-warning);
+    color: var(--accent-primary);
+    opacity: 0.8;
 }
 
 /* Logs Container */

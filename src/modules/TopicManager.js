@@ -143,6 +143,7 @@ export class TopicSession {
       maxLogs: this.maxLogs,
       autoScroll: this.autoScroll,
       jsonFormat: this.jsonFormat,
+      isPaused: this.isPaused,
       created: this.created
     };
   }

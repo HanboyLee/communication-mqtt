@@ -42,8 +42,18 @@ export class TopicRouter {
       ...meta
     };
 
+    const receivedSessions = [];
+    
     for (const session of matchingSessions) {
+      // Skip paused sessions
+      console.log('[routeMessage] session:', session.id, 'isPaused:', session.isPaused);
+      if (session.isPaused) {
+        console.log('[routeMessage] SKIPPING paused session');
+        continue;
+      }
+      
       session.addLog(logEntry);
+      receivedSessions.push(session);
       
       // 如果不是活动会话，增加未读计数
       if (session.id !== this.manager.activeTopicId) {
@@ -52,11 +62,11 @@ export class TopicRouter {
     }
 
     // 触发回调
-    if (this.onMessageRouted) {
-      this.onMessageRouted(matchingSessions, logEntry);
+    if (this.onMessageRouted && receivedSessions.length > 0) {
+      this.onMessageRouted(receivedSessions, logEntry);
     }
 
-    return matchingSessions;
+    return receivedSessions;
   }
 
   /**

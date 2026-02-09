@@ -596,22 +596,6 @@ const connectMqtt = (url) => {
         tabRenderer.render();
       });
     }
-    
-    // Legacy: subscribe single topic from config if no multi-topic sessions
-    if (sessions.length === 0) {
-      const subTopic = cfgDom.topic.value.trim();
-      if (subTopic && mqttClient) {
-        mqttClient.subscribe(subTopic, { qos: 0 }, (err) => {
-          if (!mqttClient) return;
-          if (err) {
-            pushLog('sys', `MQTT 订阅失败: ${err.message}`);
-          } else {
-            pushLog('sys', `已订阅: ${subTopic}`);
-            currentSubscribedTopic = subTopic;
-          }
-        });
-      }
-    }
   });
 
   client.on('message', (topic, payload) => {
@@ -931,6 +915,12 @@ const updateSessionToolbar = (session) => {
     dom.sessionTopicDisplay.textContent = '未选择主题';
     dom.sessionMsgCount.textContent = '0 条消息';
     dom.sessionPauseBtn?.classList.remove('paused');
+    // Reset pause icon to default
+    const pauseIcon = dom.sessionPauseBtn?.querySelector('i');
+    if (pauseIcon) {
+      pauseIcon.classList.add('fa-pause');
+      pauseIcon.classList.remove('fa-play');
+    }
     dom.sessionJsonBtn?.classList.add('active');
     dom.sessionScrollBtn?.classList.add('active');
     return;
@@ -943,6 +933,12 @@ const updateSessionToolbar = (session) => {
   
   // Update button states
   dom.sessionPauseBtn?.classList.toggle('paused', session.isPaused);
+  // Update pause icon
+  const pauseIcon = dom.sessionPauseBtn?.querySelector('i');
+  if (pauseIcon) {
+    pauseIcon.classList.toggle('fa-pause', !session.isPaused);
+    pauseIcon.classList.toggle('fa-play', session.isPaused);
+  }
   dom.sessionJsonBtn?.classList.toggle('active', session.jsonFormat);
   dom.sessionScrollBtn?.classList.toggle('active', session.autoScroll);
 };
@@ -968,6 +964,12 @@ const initSessionToolbar = () => {
     if (session) {
       session.isPaused = !session.isPaused;
       dom.sessionPauseBtn.classList.toggle('paused', session.isPaused);
+      // Toggle icon
+      const icon = dom.sessionPauseBtn.querySelector('i');
+      if (icon) {
+        icon.classList.toggle('fa-pause', !session.isPaused);
+        icon.classList.toggle('fa-play', session.isPaused);
+      }
       pushLog('sys', session.isPaused ? '已暂停接收消息' : '已恢复接收消息');
     }
   });
