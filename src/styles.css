@@ -696,6 +696,84 @@ input:focus, select:focus, textarea:focus {
     flex-shrink: 0;
 }
 
+/* Session Toolbar */
+.session-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border);
+    gap: 1rem;
+}
+
+.session-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.session-topic {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.session-stats {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.session-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.btn-tool {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-tool:hover {
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+.btn-tool.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.btn-tool.active:hover {
+    background: var(--accent-hover);
+}
+
+.btn-tool.paused {
+    background: var(--status-warning);
+    color: white;
+}
+
+.btn-tool.paused i::before {
+    content: "\f04b"; /* fa-play */
+}
+
 /* Logs Container */
 .logs-area {
     flex: 1;

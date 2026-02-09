@@ -47,7 +47,16 @@ const dom = {
   topicCount: document.getElementById('topicCount'),
   subscribeAllBtn: document.getElementById('subscribeAllBtn'),
   unsubscribeAllBtn: document.getElementById('unsubscribeAllBtn'),
-  clearAllTopicsBtn: document.getElementById('clearAllTopicsBtn')
+  toggleSubscribeAllBtn: document.getElementById('toggleSubscribeAllBtn'),
+  clearAllTopicsBtn: document.getElementById('clearAllTopicsBtn'),
+  // Session Toolbar
+  sessionToolbar: document.getElementById('sessionToolbar'),
+  sessionTopicDisplay: document.getElementById('sessionTopicDisplay'),
+  sessionMsgCount: document.getElementById('sessionMsgCount'),
+  sessionClearBtn: document.getElementById('sessionClearBtn'),
+  sessionPauseBtn: document.getElementById('sessionPauseBtn'),
+  sessionJsonBtn: document.getElementById('sessionJsonBtn'),
+  sessionScrollBtn: document.getElementById('sessionScrollBtn')
 };
 
 const cfgDom = {
@@ -695,6 +704,9 @@ const initMultiTopic = async () => {
   // Initial render
   tabRenderer.render();
   
+  // Initialize session toolbar
+  initSessionToolbar();
+  
   // === Topic Management Panel ===
   
   // Open/close panel
@@ -722,37 +734,39 @@ const initMultiTopic = async () => {
     if (e.key === 'Enter') submitNewTopic();
   });
   
-  // Subscribe all topics
-  dom.subscribeAllBtn?.addEventListener('click', () => {
+  // Toggle subscribe/unsubscribe all topics
+  dom.toggleSubscribeAllBtn?.addEventListener('click', () => {
     if (!mqttConnected || !mqttClient) {
       pushLog('sys', '请先连接 MQTT 服务器');
       return;
     }
+    
     const sessions = topicManager.getAllSessions();
-    for (const session of sessions) {
-      if (!session.isSubscribed) {
-        mqttClient.subscribe(session.topic, { qos: session.qos }, (err) => {
-          if (!err) {
-            topicManager.setSubscribed(session.id, true);
-            tabRenderer.render();
-            renderTopicList();
-          }
-        });
-      }
-    }
-  });
-  
-  // Unsubscribe all topics
-  dom.unsubscribeAllBtn?.addEventListener('click', () => {
-    if (!mqttClient) return;
-    const sessions = topicManager.getAllSessions();
-    for (const session of sessions) {
-      if (session.isSubscribed) {
+    const allSubscribed = sessions.every(s => s.isSubscribed);
+    
+    if (allSubscribed) {
+      // Unsubscribe all
+      for (const session of sessions) {
         mqttClient.unsubscribe(session.topic, () => {
           topicManager.setSubscribed(session.id, false);
           tabRenderer.render();
           renderTopicList();
+          updateToggleSubscribeBtn();
         });
+      }
+    } else {
+      // Subscribe all
+      for (const session of sessions) {
+        if (!session.isSubscribed) {
+          mqttClient.subscribe(session.topic, { qos: session.qos }, (err) => {
+            if (!err) {
+              topicManager.setSubscribed(session.id, true);
+              tabRenderer.render();
+              renderTopicList();
+              updateToggleSubscribeBtn();
+            }
+          });
+        }
       }
     }
   });
@@ -831,7 +845,6 @@ const renderTopicList = () => {
     // Switch button
     item.querySelector('.switch')?.addEventListener('click', () => {
       topicManager.switchToSession(session.id);
-      cfgDom.topic.value = session.topic;
       renderActiveSessionLogs();
       tabRenderer.render();
       dom.topicManagePanel?.classList.remove('open');
@@ -853,6 +866,34 @@ const renderTopicList = () => {
   }
   
   container.appendChild(frag);
+};
+
+/**
+ * Update toggle subscribe button state
+ */
+const updateToggleSubscribeBtn = () => {
+  const btn = dom.toggleSubscribeAllBtn;
+  if (!btn) return;
+  
+  const sessions = topicManager.getAllSessions();
+  const allSubscribed = sessions.length > 0 && sessions.every(s => s.isSubscribed);
+  
+  const icon = btn.querySelector('i');
+  const text = btn.querySelector('span');
+  
+  if (allSubscribed) {
+    icon?.classList.remove('fa-play');
+    icon?.classList.add('fa-pause');
+    if (text) text.textContent = '取消全部订阅';
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-outline');
+  } else {
+    icon?.classList.remove('fa-pause');
+    icon?.classList.add('fa-play');
+    if (text) text.textContent = '订阅全部';
+    btn.classList.remove('btn-outline');
+    btn.classList.add('btn-secondary');
+  }
 };
 
 /**
@@ -880,9 +921,76 @@ const addNewTopic = async (topic) => {
   await topicStorage.saveAll();
   topicManager.switchToSession(session.id);
   renderActiveSessionLogs();
+};
+
+/**
+ * Update session toolbar state based on active session
+ */
+const updateSessionToolbar = (session) => {
+  if (!session) {
+    dom.sessionTopicDisplay.textContent = '未选择主题';
+    dom.sessionMsgCount.textContent = '0 条消息';
+    dom.sessionPauseBtn?.classList.remove('paused');
+    dom.sessionJsonBtn?.classList.add('active');
+    dom.sessionScrollBtn?.classList.add('active');
+    return;
+  }
   
-  // Sync topic input with new session
-  cfgDom.topic.value = topic;
+  // Update info
+  dom.sessionTopicDisplay.textContent = session.topic;
+  dom.sessionTopicDisplay.title = session.topic;
+  dom.sessionMsgCount.textContent = `${session.logs.length} 条消息`;
+  
+  // Update button states
+  dom.sessionPauseBtn?.classList.toggle('paused', session.isPaused);
+  dom.sessionJsonBtn?.classList.toggle('active', session.jsonFormat);
+  dom.sessionScrollBtn?.classList.toggle('active', session.autoScroll);
+};
+
+/**
+ * Initialize session toolbar event handlers
+ */
+const initSessionToolbar = () => {
+  // Clear logs
+  dom.sessionClearBtn?.addEventListener('click', async () => {
+    const session = topicManager.getActiveSession();
+    if (session) {
+      session.clearLogs();
+      await topicStorage.saveAll();
+      renderActiveSessionLogs();
+      tabRenderer.render();
+    }
+  });
+  
+  // Pause/Resume
+  dom.sessionPauseBtn?.addEventListener('click', () => {
+    const session = topicManager.getActiveSession();
+    if (session) {
+      session.isPaused = !session.isPaused;
+      dom.sessionPauseBtn.classList.toggle('paused', session.isPaused);
+      pushLog('sys', session.isPaused ? '已暂停接收消息' : '已恢复接收消息');
+    }
+  });
+  
+  // JSON Format
+  dom.sessionJsonBtn?.addEventListener('click', () => {
+    const session = topicManager.getActiveSession();
+    if (session) {
+      session.jsonFormat = !session.jsonFormat;
+      dom.sessionJsonBtn.classList.toggle('active', session.jsonFormat);
+      renderActiveSessionLogs();
+    }
+  });
+  
+  // Auto Scroll
+  dom.sessionScrollBtn?.addEventListener('click', () => {
+    const session = topicManager.getActiveSession();
+    if (session) {
+      session.autoScroll = !session.autoScroll;
+      dom.sessionScrollBtn.classList.toggle('active', session.autoScroll);
+      scrollLocked = !session.autoScroll;
+    }
+  });
 };
 
 /**
@@ -890,6 +998,9 @@ const addNewTopic = async (topic) => {
  */
 const renderActiveSessionLogs = () => {
   const session = topicManager.getActiveSession();
+  
+  // Update toolbar state
+  updateSessionToolbar(session);
   
   if (!session) {
     // No active session, show default empty state

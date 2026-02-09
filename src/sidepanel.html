@@ -189,11 +189,8 @@
 
                 <!-- Quick Actions -->
                 <div class="panel-actions">
-                    <button id="subscribeAllBtn" class="btn btn-secondary btn-sm btn-full">
-                        <i class="fa-solid fa-play"></i> 订阅全部
-                    </button>
-                    <button id="unsubscribeAllBtn" class="btn btn-outline btn-sm btn-full">
-                        <i class="fa-solid fa-pause"></i> 取消全部订阅
+                    <button id="toggleSubscribeAllBtn" class="btn btn-secondary btn-sm btn-full">
+                        <i class="fa-solid fa-play"></i> <span>订阅全部</span>
                     </button>
                     <button id="clearAllTopicsBtn" class="btn btn-danger btn-sm btn-full">
                         <i class="fa-solid fa-trash"></i> 清空主题
@@ -213,6 +210,28 @@
             <button id="manageTopicsBtn" class="btn btn-icon btn-sm tab-action-btn" title="管理主题">
                 <i class="fa-solid fa-gear"></i>
             </button>
+        </div>
+
+        <!-- Session Toolbar -->
+        <div id="sessionToolbar" class="session-toolbar">
+            <div class="session-info">
+                <span id="sessionTopicDisplay" class="session-topic">未选择主题</span>
+                <span id="sessionMsgCount" class="session-stats">0 条消息</span>
+            </div>
+            <div class="session-actions">
+                <button id="sessionClearBtn" class="btn-tool" title="清空日志">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                <button id="sessionPauseBtn" class="btn-tool" title="暂停接收">
+                    <i class="fa-solid fa-pause"></i>
+                </button>
+                <button id="sessionJsonBtn" class="btn-tool active" title="JSON 格式化">
+                    <i class="fa-solid fa-code"></i>
+                </button>
+                <button id="sessionScrollBtn" class="btn-tool active" title="自动滚动">
+                    <i class="fa-solid fa-angles-down"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Main Log Area -->
