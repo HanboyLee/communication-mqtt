@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Debugger Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Background Gradients -->
+        <div class="bg-gradient-1"></div>
+        <div class="bg-gradient-2"></div>
+
+        <!-- Header -->
+        <header class="header blur-glass">
+            <div class="header-main">
+                <div class="status-indicator" id="statusDot" data-status="disconnected" title="已断开"></div>
+                <div class="input-stack">
+                    <div class="input-group url-input-group">
+                        <i class="fa-solid fa-link input-icon"></i>
+                        <input type="text" id="urlInput" placeholder="wss://echo.websocket.org" autocomplete="off">
+                    </div>
+                </div>
+                <button id="connectBtn" class="btn btn-primary">
+                    <span class="btn-text">连接</span>
+                    <i class="fa-solid fa-plug"></i>
+                </button>
+                <button id="settingsToggleBtn" class="btn btn-icon" title="设置">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
+            </div>
+            
+            <div class="input-group topic-input-group">
+                <i class="fa-solid fa-tag input-icon"></i>
+                <input type="text" id="cfgTopic" placeholder="主题 (MQTT) 或查询参数 (WS)" autocomplete="off">
+            </div>
+            
+            <div class="header-toolbar">
+                <div class="tool-group">
+                    <span class="label">空闲(秒)</span>
+                    <input type="number" id="idleInput" class="input-mini" min="0" value="0">
+                </div>
+                <div class="tool-group">
+                    <span class="label">历史</span>
+                    <input type="number" id="historySizeInput" class="input-mini" min="1" max="50" value="5">
+                </div>
+                <div class="spacer"></div>
+                <button id="clearBtn" class="btn btn-icon btn-sm" title="清空日志">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                <button id="scrollLockBtn" class="btn btn-icon btn-sm" title="切换滚动锁定">
+                    <i class="fa-solid fa-lock-open"></i>
+                </button>
+                <button id="themeBtn" class="btn btn-icon btn-sm" title="切换主题">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Settings Drawer (Slide-in) -->
+        <aside id="settingsPanel" class="settings-panel blur-glass">
+            <div class="settings-header">
+                <h3>高级配置</h3>
+                <button id="closeSettingsBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="settings-content">
+                <div class="form-group grid-2">
+                    <label>
+                        <span>模式</span>
+                        <select id="cfgMode">
+                            <option value="ws">WebSocket</option>
+                            <option value="mqtt">MQTT (WS)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>协议</span>
+                        <select id="cfgProtocol">
+                            <option value="ws">ws://</option>
+                            <option value="wss">wss://</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>客户端 ID (MQTT)</span>
+                        <input type="text" id="cfgClientId" placeholder="mqttjs_random">
+                    </label>
+                </div>
+
+                <div class="form-group grid-3-1">
+                    <label>
+                        <span>主机</span>
+                        <input type="text" id="cfgHost" placeholder="localhost">
+                    </label>
+                    <label>
+                        <span>端口</span>
+                        <input type="number" id="cfgPort" placeholder="8084">
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>路径</span>
+                        <input type="text" id="cfgPath" placeholder="/ws">
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group">
+                     <label>
+                        <input type="checkbox" id="cfgSsl">
+                        <span>安全模式 (SSL/TLS) - 自动 wss://</span>
+                    </label>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-group grid-2">
+                    <label>
+                        <span>用户名</span>
+                        <input type="text" id="cfgUsername" placeholder="选填">
+                    </label>
+                    <label>
+                        <span>密码</span>
+                        <input type="password" id="cfgPassword" placeholder="选填">
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>发布主题 (选填)</span>
+                        <input type="text" id="cfgPubTopic" placeholder="默认同订阅主题">
+                    </label>
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="cfgAutoReconnect">
+                        <span>MQTT 自动重连</span>
+                    </label>
+                </div>
+
+                <div class="preview-box">
+                    <span class="preview-label">预览 URL</span>
+                    <code id="cfgPreview">ws://localhost:8084/ws</code>
+                </div>
+
+                <button id="applyConfigBtn" class="btn btn-full btn-secondary">应用并填充 URL</button>
+            </div>
+        </aside>
+
+        <!-- Main Log Area -->
+        <main id="logContainer" class="logs-area custom-scrollbar">
+            <div class="empty-state">
+                <i class="fa-solid fa-satellite-dish"></i>
+                <p>准备连接</p>
+            </div>
+            <!-- Logs will be injected here -->
+        </main>
+
+        <!-- Footer / Input -->
+        <footer class="footer blur-glass">
+            <div id="historyChips" class="history-chips">
+                <!-- Chips injected here -->
+            </div>
+            <div class="input-area">
+                <textarea id="messageInput" rows="1" placeholder="输入消息... (Ctrl+Enter 发送)"></textarea>
+                <button id="sendBtn" class="btn btn-round btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+    <script type="module" src="/sidepanel.js"></script>
+</body>
+</html>
