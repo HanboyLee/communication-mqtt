@@ -35,11 +35,6 @@
                 </button>
             </div>
             
-            <div class="input-group topic-input-group">
-                <i class="fa-solid fa-tag input-icon"></i>
-                <input type="text" id="cfgTopic" placeholder="主题 (MQTT) 或查询参数 (WS)" autocomplete="off">
-            </div>
-            
             <div class="header-toolbar">
                 <div class="tool-group">
                     <span class="label">空闲(秒)</span>
@@ -153,6 +148,72 @@
                 <button id="applyConfigBtn" class="btn btn-full btn-secondary">应用并填充 URL</button>
             </div>
         </aside>
+
+        <!-- Topic Management Panel -->
+        <aside id="topicManagePanel" class="topic-manage-panel blur-glass">
+            <div class="panel-header">
+                <h3><i class="fa-solid fa-layer-group"></i> 主题管理</h3>
+                <button id="closeTopicPanelBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="panel-content custom-scrollbar">
+                <!-- Add Topic Form -->
+                <div class="add-topic-form">
+                    <div class="form-row">
+                        <input type="text" id="newTopicInput" placeholder="输入主题 (支持 + 和 # 通配符)" autocomplete="off">
+                        <button id="addTopicSubmitBtn" class="btn btn-primary btn-sm">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="form-hint">
+                        <span><code>+</code> 单级通配</span>
+                        <span><code>#</code> 多级通配</span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Topic List -->
+                <div class="topic-list-header">
+                    <span>已订阅主题</span>
+                    <span id="topicCount" class="badge">0</span>
+                </div>
+                <div id="topicList" class="topic-list">
+                    <!-- Topics will be injected here -->
+                    <div class="empty-hint">
+                        <i class="fa-solid fa-inbox"></i>
+                        <p>暂无订阅主题</p>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Quick Actions -->
+                <div class="panel-actions">
+                    <button id="subscribeAllBtn" class="btn btn-secondary btn-sm btn-full">
+                        <i class="fa-solid fa-play"></i> 订阅全部
+                    </button>
+                    <button id="unsubscribeAllBtn" class="btn btn-outline btn-sm btn-full">
+                        <i class="fa-solid fa-pause"></i> 取消全部订阅
+                    </button>
+                    <button id="clearAllTopicsBtn" class="btn btn-danger btn-sm btn-full">
+                        <i class="fa-solid fa-trash"></i> 清空主题
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Topic Tab Bar (Multi-topic feature) -->
+        <div id="topicTabBar" class="topic-tab-bar">
+            <div id="topicTabs" class="topic-tabs custom-scrollbar">
+                <!-- Tabs will be injected here by TabRenderer -->
+            </div>
+            <button id="addTopicBtn" class="btn btn-icon btn-sm tab-action-btn" title="添加主题">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <button id="manageTopicsBtn" class="btn btn-icon btn-sm tab-action-btn" title="管理主题">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
 
         <!-- Main Log Area -->
         <main id="logContainer" class="logs-area custom-scrollbar">

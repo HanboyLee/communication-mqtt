@@ -2,6 +2,9 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './styles.css';
 import mqtt from 'mqtt';
 
+// Multi-topic modules
+import { topicManager, topicRouter, topicStorage, tabRenderer } from './modules/index.js';
+
 const Status = {
   Connecting: 'connecting',
   Connected: 'connected',
@@ -29,7 +32,22 @@ const dom = {
   messageInput: document.getElementById('messageInput'),
   sendBtn: document.getElementById('sendBtn'),
   historyChips: document.getElementById('historyChips'),
-  statusDot: document.getElementById('statusDot')
+  statusDot: document.getElementById('statusDot'),
+  // Multi-topic elements
+  topicTabBar: document.getElementById('topicTabBar'),
+  topicTabs: document.getElementById('topicTabs'),
+  addTopicBtn: document.getElementById('addTopicBtn'),
+  manageTopicsBtn: document.getElementById('manageTopicsBtn'),
+  // Topic Management Panel
+  topicManagePanel: document.getElementById('topicManagePanel'),
+  closeTopicPanelBtn: document.getElementById('closeTopicPanelBtn'),
+  newTopicInput: document.getElementById('newTopicInput'),
+  addTopicSubmitBtn: document.getElementById('addTopicSubmitBtn'),
+  topicList: document.getElementById('topicList'),
+  topicCount: document.getElementById('topicCount'),
+  subscribeAllBtn: document.getElementById('subscribeAllBtn'),
+  unsubscribeAllBtn: document.getElementById('unsubscribeAllBtn'),
+  clearAllTopicsBtn: document.getElementById('clearAllTopicsBtn')
 };
 
 const cfgDom = {
@@ -42,7 +60,6 @@ const cfgDom = {
   host: document.getElementById('cfgHost'),
   port: document.getElementById('cfgPort'),
   path: document.getElementById('cfgPath'),
-  topic: document.getElementById('cfgTopic'),
   ssl: document.getElementById('cfgSsl'),
   username: document.getElementById('cfgUsername'),
   password: document.getElementById('cfgPassword'),
@@ -141,7 +158,6 @@ const persistConfig = async () => {
       host: cfgDom.host.value.trim()||"192.168.10.190",
       port: cfgDom.port.value.trim()||"8884",
       path: cfgDom.path.value.trim()||"/mqtt",
-      topic: cfgDom.topic.value.trim(),
       pubTopic: cfgDom.pubTopic.value.trim(),
       ssl: cfgDom.ssl.checked,
       username: cfgDom.username.value.trim(),
@@ -174,7 +190,6 @@ const loadConfig = async () => {
   cfgDom.host.value = cfg.host || '192.168.10.190';
   cfgDom.port.value = cfg.port || '8884';
   cfgDom.path.value = cfg.path || '/mqtt';
-  cfgDom.topic.value = cfg.topic || '';
   cfgDom.pubTopic.value = cfg.pubTopic || '';
   cfgDom.ssl.checked = cfg.ssl || false;
   cfgDom.username.value = cfg.username || 'sinoval';
@@ -217,12 +232,8 @@ const buildUrlFromConfig = () => {
   const port = cfgDom.port.value.trim();
   let path = cfgDom.path.value.trim();
   if (path && !path.startsWith('/')) path = `/${path}`;
-  const topic = cfgDom.topic.value.trim();
 
   const base = `${protocol}://${host}${port ? `:${port}` : ''}${path || ''}`;
-  if (mode === 'ws' && topic) {
-    return `${base}?${topic}`;
-  }
   return base;
 };
 
@@ -507,36 +518,6 @@ const initEvents = () => {
     });
   });
 
-  // Special handling for Topic (Dynamic Subscribe/Unsubscribe)
-  cfgDom.topic.addEventListener('input', () => {
-    refreshPreview();
-    persistConfig();
-  });
-
-  // Handle dynamic subscription update on 'change' (blur/enter) to avoid thrashing on every keystroke
-  cfgDom.topic.addEventListener('change', () => {
-    const newTopic = cfgDom.topic.value.trim();
-    if (mode === 'mqtt' && mqttConnected && mqttClient) {
-      if (currentSubscribedTopic && currentSubscribedTopic !== newTopic) {
-        mqttClient.unsubscribe(currentSubscribedTopic, (err) => {
-          if (!err) pushLog('sys', `已取消订阅: ${currentSubscribedTopic}`);
-        });
-        currentSubscribedTopic = '';
-      }
-      
-      if (newTopic) {
-        mqttClient.subscribe(newTopic, { qos: 0 }, (err) => {
-          if (!err) {
-            pushLog('sys', `已订阅: ${newTopic}`);
-            currentSubscribedTopic = newTopic;
-          } else {
-             pushLog('sys', `订阅失败: ${err.message}`);
-          }
-        });
-      }
-    }
-  });
-
   cfgDom.applyBtn.addEventListener('click', () => {
     const built = buildUrlFromConfig();
     dom.urlInput.value = built;
@@ -591,17 +572,36 @@ const connectMqtt = (url) => {
     persistState();
     startIdleWatcher();
     
-    const subTopic = cfgDom.topic.value.trim();
-    if (subTopic && mqttClient) {
-      mqttClient.subscribe(subTopic, { qos: 0 }, (err) => {
+    // Subscribe all saved topics from TopicManager
+    const sessions = topicManager.getAllSessions();
+    for (const session of sessions) {
+      mqttClient.subscribe(session.topic, { qos: session.qos }, (err) => {
         if (!mqttClient) return;
         if (err) {
-          pushLog('sys', `MQTT 订阅失败: ${err.message}`);
+          pushLog('sys', `订阅失败 [${session.topic}]: ${err.message}`);
+          topicManager.setSubscribed(session.id, false);
         } else {
-          pushLog('sys', `已订阅: ${subTopic}`);
-          currentSubscribedTopic = subTopic;
+          pushLog('sys', `已订阅: ${session.topic}`);
+          topicManager.setSubscribed(session.id, true);
         }
+        tabRenderer.render();
       });
+    }
+    
+    // Legacy: subscribe single topic from config if no multi-topic sessions
+    if (sessions.length === 0) {
+      const subTopic = cfgDom.topic.value.trim();
+      if (subTopic && mqttClient) {
+        mqttClient.subscribe(subTopic, { qos: 0 }, (err) => {
+          if (!mqttClient) return;
+          if (err) {
+            pushLog('sys', `MQTT 订阅失败: ${err.message}`);
+          } else {
+            pushLog('sys', `已订阅: ${subTopic}`);
+            currentSubscribedTopic = subTopic;
+          }
+        });
+      }
     }
   });
 
@@ -609,7 +609,25 @@ const connectMqtt = (url) => {
     if (!mqttClient) return;
     recordInteraction();
     const text = payload ? payload.toString() : '';
-    pushLog('rx', text);
+    
+    // Route message to matching sessions
+    const matchedSessions = topicRouter.routeMessage(topic, text);
+    
+    if (matchedSessions.length > 0) {
+      // Update badge for non-active sessions
+      for (const session of matchedSessions) {
+        tabRenderer.updateBadge(session.id);
+      }
+      
+      // Re-render if active session received message
+      const activeSession = topicManager.getActiveSession();
+      if (activeSession && matchedSessions.some(s => s.id === activeSession.id)) {
+        renderActiveSessionLogs();
+      }
+    } else {
+      // Fallback: no matching session, log to global (legacy behavior)
+      pushLog('rx', `[${topic}] ${text}`);
+    }
   });
 
   client.on('error', (err) => {
@@ -633,6 +651,302 @@ const init = async () => {
   await loadState();
   await loadConfig();
   initEvents();
+  
+  // Initialize multi-topic system
+  await initMultiTopic();
+};
+
+/**
+ * Initialize multi-topic system
+ */
+const initMultiTopic = async () => {
+  // Initialize TabRenderer
+  tabRenderer.init('topicTabs');
+  
+  // Load saved topic configs
+  await topicStorage.loadAll();
+  
+  // Set up TabRenderer callbacks
+  tabRenderer.onTabClick = (sessionId) => {
+    topicManager.switchToSession(sessionId);
+    renderActiveSessionLogs();
+  };
+  
+  tabRenderer.onTabClose = async (sessionId, topic) => {
+    // Unsubscribe from MQTT if connected
+    if (mqttConnected && mqttClient) {
+      mqttClient.unsubscribe(topic, () => {
+        pushLog('sys', `已取消订阅: ${topic}`);
+      });
+    }
+    topicManager.deleteSession(sessionId);
+    await topicStorage.saveAll();
+    renderActiveSessionLogs();
+  };
+  
+  // Add topic button
+  dom.addTopicBtn?.addEventListener('click', () => {
+    const topic = prompt('输入要订阅的主题:');
+    if (topic && topic.trim()) {
+      addNewTopic(topic.trim());
+    }
+  });
+  
+  // Initial render
+  tabRenderer.render();
+  
+  // === Topic Management Panel ===
+  
+  // Open/close panel
+  dom.manageTopicsBtn?.addEventListener('click', () => {
+    dom.topicManagePanel?.classList.add('open');
+    renderTopicList();
+  });
+  
+  dom.closeTopicPanelBtn?.addEventListener('click', () => {
+    dom.topicManagePanel?.classList.remove('open');
+  });
+  
+  // Add topic from panel
+  const submitNewTopic = () => {
+    const topic = dom.newTopicInput?.value.trim();
+    if (topic) {
+      addNewTopic(topic);
+      dom.newTopicInput.value = '';
+      renderTopicList();
+    }
+  };
+  
+  dom.addTopicSubmitBtn?.addEventListener('click', submitNewTopic);
+  dom.newTopicInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewTopic();
+  });
+  
+  // Subscribe all topics
+  dom.subscribeAllBtn?.addEventListener('click', () => {
+    if (!mqttConnected || !mqttClient) {
+      pushLog('sys', '请先连接 MQTT 服务器');
+      return;
+    }
+    const sessions = topicManager.getAllSessions();
+    for (const session of sessions) {
+      if (!session.isSubscribed) {
+        mqttClient.subscribe(session.topic, { qos: session.qos }, (err) => {
+          if (!err) {
+            topicManager.setSubscribed(session.id, true);
+            tabRenderer.render();
+            renderTopicList();
+          }
+        });
+      }
+    }
+  });
+  
+  // Unsubscribe all topics
+  dom.unsubscribeAllBtn?.addEventListener('click', () => {
+    if (!mqttClient) return;
+    const sessions = topicManager.getAllSessions();
+    for (const session of sessions) {
+      if (session.isSubscribed) {
+        mqttClient.unsubscribe(session.topic, () => {
+          topicManager.setSubscribed(session.id, false);
+          tabRenderer.render();
+          renderTopicList();
+        });
+      }
+    }
+  });
+  
+  // Clear all topics
+  dom.clearAllTopicsBtn?.addEventListener('click', async () => {
+    if (!confirm('确定清空所有主题？')) return;
+    
+    // Unsubscribe all first
+    if (mqttClient) {
+      const sessions = topicManager.getAllSessions();
+      for (const session of sessions) {
+        mqttClient.unsubscribe(session.topic);
+      }
+    }
+    
+    // Clear all sessions
+    topicManager.clear();
+    await topicStorage.saveAll();
+    tabRenderer.render();
+    renderTopicList();
+    renderActiveSessionLogs();
+    cfgDom.topic.value = '';
+  });
+};
+
+/**
+ * Render topic list in Topic Management Panel
+ */
+const renderTopicList = () => {
+  const container = dom.topicList;
+  const countBadge = dom.topicCount;
+  if (!container) return;
+  
+  const sessions = topicManager.getAllSessions();
+  
+  // Update count badge
+  if (countBadge) {
+    countBadge.textContent = sessions.length;
+  }
+  
+  // Empty state
+  if (sessions.length === 0) {
+    container.innerHTML = `
+      <div class="empty-hint">
+        <i class="fa-solid fa-inbox"></i>
+        <p>暂无订阅主题</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Render topic items
+  container.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  
+  for (const session of sessions) {
+    const item = document.createElement('div');
+    item.className = 'topic-item';
+    item.dataset.id = session.id;
+    
+    item.innerHTML = `
+      <span class="topic-color" style="background: ${session.color}"></span>
+      <div class="topic-info">
+        <div class="topic-name" title="${session.topic}">${session.topic}</div>
+        <div class="topic-stats">
+          ${session.isSubscribed ? '✓ 已订阅' : '○ 未订阅'} · ${session.logs.length} 条消息
+        </div>
+      </div>
+      <div class="topic-actions">
+        <button class="switch" title="切换到此主题"><i class="fa-solid fa-arrow-right"></i></button>
+        <button class="delete" title="删除主题"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    `;
+    
+    // Switch button
+    item.querySelector('.switch')?.addEventListener('click', () => {
+      topicManager.switchToSession(session.id);
+      cfgDom.topic.value = session.topic;
+      renderActiveSessionLogs();
+      tabRenderer.render();
+      dom.topicManagePanel?.classList.remove('open');
+    });
+    
+    // Delete button
+    item.querySelector('.delete')?.addEventListener('click', async () => {
+      if (mqttClient && session.isSubscribed) {
+        mqttClient.unsubscribe(session.topic);
+      }
+      topicManager.deleteSession(session.id);
+      await topicStorage.saveAll();
+      tabRenderer.render();
+      renderTopicList();
+      renderActiveSessionLogs();
+    });
+    
+    frag.appendChild(item);
+  }
+  
+  container.appendChild(frag);
+};
+
+/**
+ * Add a new topic subscription
+ */
+const addNewTopic = async (topic) => {
+  // Create session
+  const session = topicManager.createSession(topic);
+  
+  // Subscribe if MQTT is connected
+  if (mqttConnected && mqttClient) {
+    mqttClient.subscribe(topic, { qos: 0 }, (err) => {
+      if (err) {
+        pushLog('sys', `订阅失败: ${err.message}`);
+        topicManager.setSubscribed(session.id, false);
+      } else {
+        pushLog('sys', `已订阅: ${topic}`);
+        topicManager.setSubscribed(session.id, true);
+      }
+      tabRenderer.render();
+    });
+  }
+  
+  // Save and switch to new topic
+  await topicStorage.saveAll();
+  topicManager.switchToSession(session.id);
+  renderActiveSessionLogs();
+  
+  // Sync topic input with new session
+  cfgDom.topic.value = topic;
+};
+
+/**
+ * Render logs for the active session
+ */
+const renderActiveSessionLogs = () => {
+  const session = topicManager.getActiveSession();
+  
+  if (!session) {
+    // No active session, show default empty state
+    dom.logContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-solid fa-satellite-dish"></i>
+        <p>点击 + 添加主题开始</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Render session logs
+  dom.logContainer.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  
+  for (const log of session.getFilteredLogs()) {
+    const row = document.createElement('div');
+    row.className = `log-row ${log.kind}`;
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'log-bubble';
+    bubble.textContent = log.message;
+    
+    const contentCol = document.createElement('div');
+    contentCol.style.display = 'flex';
+    contentCol.style.flexDirection = 'column';
+    contentCol.style.alignItems = log.kind === 'tx' ? 'flex-end' : log.kind === 'sys' ? 'center' : 'flex-start';
+    contentCol.style.maxWidth = '100%';
+    
+    contentCol.appendChild(bubble);
+    
+    if (log.kind !== 'sys') {
+      const ts = document.createElement('div');
+      ts.className = 'timestamp';
+      ts.textContent = log.time;
+      contentCol.appendChild(ts);
+    }
+    
+    row.appendChild(contentCol);
+    frag.appendChild(row);
+  }
+  
+  if (session.logs.length === 0) {
+    dom.logContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-solid fa-inbox"></i>
+        <p>等待 ${session.topic} 的消息...</p>
+      </div>
+    `;
+  } else {
+    dom.logContainer.appendChild(frag);
+  }
+  
+  if (!scrollLocked) {
+    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+  }
 };
 
 init();

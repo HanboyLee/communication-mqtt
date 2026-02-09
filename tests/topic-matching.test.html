@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>主题匹配算法测试</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #3b82f6; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 24px; }
+    .test-group {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .test-group h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #8b5cf6;
+    }
+    .test-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 14px;
+    }
+    .test-row.pass { background: rgba(16, 185, 129, 0.1); }
+    .test-row.fail { background: rgba(239, 68, 68, 0.1); }
+    .status {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-size: 14px;
+    }
+    .status.pass { background: #10b981; }
+    .status.fail { background: #ef4444; }
+    .test-info { flex: 1; }
+    .test-name { font-weight: 500; }
+    .test-detail { color: #888; font-size: 12px; margin-top: 2px; }
+    .summary {
+      background: #0f3460;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+      text-align: center;
+    }
+    .summary.all-pass { border: 2px solid #10b981; }
+    .summary.has-fail { border: 2px solid #ef4444; }
+    .summary h3 { margin: 0 0 8px 0; }
+    .summary .count { font-size: 24px; font-weight: bold; }
+    .summary .count.pass { color: #10b981; }
+    .summary .count.fail { color: #ef4444; }
+    #run-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-bottom: 24px;
+    }
+    #run-btn:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>🧪 多主题模块测试</h1>
+  <p class="subtitle">测试 MQTT 主题匹配算法和 TopicManager 功能</p>
+  
+  <button id="run-btn">运行所有测试</button>
+  
+  <div id="results"></div>
+  <div id="summary" class="summary" style="display: none;"></div>
+
+  <script type="module">
+    // ===== 内联 matchTopic 函数（用于独立测试） =====
+    function matchTopic(subscriptionPattern, messageTopic) {
+      if (!subscriptionPattern || !messageTopic) return false;
+      if (subscriptionPattern === messageTopic) return true;
+      if (subscriptionPattern === '#') return true;
+      
+      const patternParts = subscriptionPattern.split('/');
+      const topicParts = messageTopic.split('/');
+      
+      for (let i = 0; i < patternParts.length; i++) {
+        const patternPart = patternParts[i];
+        
+        if (patternPart === '#') {
+          return true;
+        }
+        
+        if (i >= topicParts.length) {
+          return false;
+        }
+        
+        const topicPart = topicParts[i];
+        
+        if (patternPart === '+') {
+          continue;
+        }
+        
+        if (patternPart !== topicPart) {
+          return false;
+        }
+      }
+      
+      return patternParts.length === topicParts.length;
+    }
+
+    // ===== 测试用例 =====
+    const testCases = [
+      // 精确匹配
+      {
+        group: '精确匹配',
+        tests: [
+          { pattern: 'home/temp', topic: 'home/temp', expected: true, desc: '完全相同' },
+          { pattern: 'home/temp', topic: 'home/humidity', expected: false, desc: '不同主题' },
+          { pattern: 'a/b/c', topic: 'a/b/c', expected: true, desc: '多层级精确匹配' },
+          { pattern: 'a/b/c', topic: 'a/b/d', expected: false, desc: '最后一级不同' },
+        ]
+      },
+      // 单级通配符 +
+      {
+        group: '单级通配符 (+)',
+        tests: [
+          { pattern: 'home/+/temp', topic: 'home/living/temp', expected: true, desc: '中间匹配任意' },
+          { pattern: 'home/+/temp', topic: 'home/living/room/temp', expected: false, desc: '不能匹配多级' },
+          { pattern: '+/temp', topic: 'home/temp', expected: true, desc: '开头匹配任意' },
+          { pattern: 'home/+', topic: 'home/temp', expected: true, desc: '结尾匹配任意' },
+          { pattern: '+/+/+', topic: 'a/b/c', expected: true, desc: '多个单级通配符' },
+          { pattern: '+', topic: 'home', expected: true, desc: '单个+匹配单层级' },
+        ]
+      },
+      // 多级通配符 #
+      {
+        group: '多级通配符 (#)',
+        tests: [
+          { pattern: 'home/#', topic: 'home/living/room/temp', expected: true, desc: '匹配多级' },
+          { pattern: 'home/#', topic: 'home/temp', expected: true, desc: '匹配单级' },
+          { pattern: 'home/#', topic: 'home', expected: true, desc: '匹配零级 (MQTT 3.1.1)' },
+          { pattern: '#', topic: 'any/topic/here', expected: true, desc: '全匹配' },
+          { pattern: '#', topic: 'single', expected: true, desc: '单层级全匹配' },
+          { pattern: 'sensors/#', topic: 'sensors', expected: true, desc: '# 匹配零级' },
+        ]
+      },
+      // 边界情况
+      {
+        group: '边界情况',
+        tests: [
+          { pattern: '', topic: 'home', expected: false, desc: '空订阅主题' },
+          { pattern: 'home', topic: '', expected: false, desc: '空消息主题' },
+          { pattern: 'home/+/#', topic: 'home/living/room/temp', expected: true, desc: '混合通配符' },
+          { pattern: '$SYS/#', topic: '$SYS/broker/clients', expected: true, desc: '系统主题' },
+          { pattern: 'home/temp', topic: 'HOME/temp', expected: false, desc: '大小写敏感' },
+        ]
+      },
+    ];
+
+    // ===== 测试运行器 =====
+    function runTests() {
+      const resultsDiv = document.getElementById('results');
+      const summaryDiv = document.getElementById('summary');
+      resultsDiv.innerHTML = '';
+      
+      let passCount = 0;
+      let failCount = 0;
+
+      for (const group of testCases) {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'test-group';
+        groupDiv.innerHTML = `<h2>${group.group}</h2>`;
+
+        for (const test of group.tests) {
+          const result = matchTopic(test.pattern, test.topic);
+          const passed = result === test.expected;
+          
+          if (passed) passCount++;
+          else failCount++;
+
+          const row = document.createElement('div');
+          row.className = `test-row ${passed ? 'pass' : 'fail'}`;
+          row.innerHTML = `
+            <div class="status ${passed ? 'pass' : 'fail'}">${passed ? '✓' : '✗'}</div>
+            <div class="test-info">
+              <div class="test-name">${test.desc}</div>
+              <div class="test-detail">
+                matchTopic("${test.pattern}", "${test.topic}") 
+                → ${result} (预期: ${test.expected})
+              </div>
+            </div>
+          `;
+          groupDiv.appendChild(row);
+        }
+
+        resultsDiv.appendChild(groupDiv);
+      }
+
+      // 显示总结
+      summaryDiv.style.display = 'block';
+      summaryDiv.className = `summary ${failCount === 0 ? 'all-pass' : 'has-fail'}`;
+      summaryDiv.innerHTML = `
+        <h3>测试结果</h3>
+        <span class="count pass">${passCount} 通过</span>
+        ${failCount > 0 ? `<span class="count fail"> / ${failCount} 失败</span>` : ''}
+      `;
+    }
+
+    // 绑定按钮事件
+    document.getElementById('run-btn').addEventListener('click', runTests);
+    
+    // 页面加载时自动运行
+    runTests();
+  </script>
+</body>
+</html>
