@@ -1,5 +1,5 @@
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import './styles.css';
+import './css/styles.css';
 import mqtt from 'mqtt';
 
 // Multi-topic modules
