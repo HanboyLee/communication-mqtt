@@ -34,8 +34,10 @@ After building, load the extension in Chrome:
 ```
 src/
 ├── sidepanel.html    # Main HTML structure for the side panel UI
-├── sidepanel.js      # All application logic (no framework)
-├── styles.css        # Complete styling with CSS variables for theming
+├── sidepanel.js      # Application entry / orchestrator (no framework)
+├── css/
+│   └── styles.css    # Stylesheet management (CSS variables for theming)
+├── modules/          # Multi-topic modular domain logic
 public/
 ├── manifest.json     # Chrome extension manifest (V3)
 └── icons/           # Extension icons
