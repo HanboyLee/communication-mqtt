@@ -24,4 +24,23 @@ npm-debug.log*
 .env.local
 .CLAUDE.md
 .claude/
-.agents/
+
+# Local agent tooling (skills etc. stay untracked)
+# Track only shared rules under .agents/rules/
+.agents/*
+!.agents/rules/
+!.agents/rules/**
+
+# Local tooling / packaged artifacts (do not commit)
+.codegraph/
+
+# Packaged extension / release artifacts (do not commit)
+mqtt_dist_extension/
+*_dist_extension/
+package/
+packages/
+packaged/
+release/
+releases/
+*.zip
+*.crx

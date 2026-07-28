@@ -39,3 +39,4 @@ npm run watch   # 监听变更并构建
 3. **技术栈**：保持 **Vanilla JS + Chrome Extension APIs**；除非明确要求，不要引入框架重写。
 4. **改动范围**：任务相关、最小 diff；不要无关重构或编造新功能。
 5. **区域细节**：模块与 CSS 的更具体说明分别见对应目录下的 `AGENTS.md`。
+6. **强制规则**：见 [`.agents/rules/`](.agents/rules/)（尤其是 [禁止打包](.agents/rules/no-packaging.md)——不得协助用户打包/制作分发包）。
