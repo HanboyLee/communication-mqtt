@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node tests/check-dist-ui-shell.mjs",
     "watch": "vite build --watch",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node tests/topic-matching.node.test.js && node tests/ui-shell.node.test.js",
+    "test:ui-shell": "node tests/ui-shell.node.test.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.5.1",
