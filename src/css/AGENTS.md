@@ -28,6 +28,8 @@
 
 滚动所有权：header / topic tabs / session toolbar / footer 固定；消息区 `.logs-area` 滚动。窗口寿命警告仅在设置「界面」hint / confirm 中说明，无壳内 banner。
 
+**`.logs-area` 必须** `min-height: 0`（及可选 `min-width: 0`）：作为 flex 子项时否则会随内容撑高、内部无法滚动，导致 `scrollTop` 看起来无效（自动滚动按钮“没反应”）。
+
 ## 约定
 
 1. **新样式放本目录**（可继续追加到 `styles.css`，或按需拆分文件并在入口统一引入）。

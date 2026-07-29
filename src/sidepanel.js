@@ -409,9 +409,45 @@ const renderLogs = () => {
     dom.logContainer.appendChild(frag);
   }
 
-  if (!scrollLocked) {
-    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+  scrollLogsToBottomIfNeeded();
+};
+
+/**
+ * Auto-scroll source of truth:
+ * - active session → session.autoScroll
+ * - no session → !scrollLocked (global header lock)
+ */
+const isAutoScrollEnabled = () => {
+  const s = topicManager.getActiveSession();
+  return s ? !!s.autoScroll : !scrollLocked;
+};
+
+/** Keep global scrollLocked + both button UIs aligned with active session. */
+const syncScrollLockFromActiveSession = () => {
+  const s = topicManager.getActiveSession();
+  if (s) {
+    scrollLocked = !s.autoScroll;
   }
+  const autoOn = s ? !!s.autoScroll : !scrollLocked;
+  if (dom.sessionScrollBtn) {
+    dom.sessionScrollBtn.classList.toggle('active', autoOn);
+    dom.sessionScrollBtn.title = autoOn ? '自动滚动 (开)' : '自动滚动 (关)';
+  }
+  if (dom.scrollLockBtn) {
+    dom.scrollLockBtn.innerHTML = scrollLocked
+      ? '<i class="fa-solid fa-lock"></i>'
+      : '<i class="fa-solid fa-lock-open"></i>';
+    dom.scrollLockBtn.title = scrollLocked ? '滚动已锁定（关闭自动滚动）' : '切换滚动锁定';
+  }
+};
+
+/** Scroll log area to bottom after paint when auto-scroll is on. */
+const scrollLogsToBottomIfNeeded = () => {
+  if (!isAutoScrollEnabled() || !dom.logContainer) return;
+  requestAnimationFrame(() => {
+    if (!dom.logContainer || !isAutoScrollEnabled()) return;
+    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+  });
 };
 
 const renderHistoryChips = () => {
@@ -553,7 +589,15 @@ const sendMessage = () => {
 
 const toggleScrollLock = () => {
   scrollLocked = !scrollLocked;
-  dom.scrollLockBtn.innerHTML = scrollLocked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>';
+  const session = topicManager.getActiveSession();
+  if (session) {
+    session.autoScroll = !scrollLocked;
+    topicStorage.saveAll().catch(() => {});
+  }
+  syncScrollLockFromActiveSession();
+  if (!scrollLocked) {
+    scrollLogsToBottomIfNeeded();
+  }
 };
 
 const applyTheme = (nextTheme) => {
@@ -792,6 +836,7 @@ const initMultiTopic = async () => {
   // Set up TabRenderer callbacks
   tabRenderer.onTabClick = (sessionId) => {
     topicManager.switchToSession(sessionId);
+    syncScrollLockFromActiveSession();
     renderActiveSessionLogs();
   };
   
@@ -820,6 +865,9 @@ const initMultiTopic = async () => {
   
   // Initialize session toolbar
   initSessionToolbar();
+  // Align scrollLocked + buttons with restored session.autoScroll
+  syncScrollLockFromActiveSession();
+  renderActiveSessionLogs();
   
   // === Topic Management Panel ===
   
@@ -1052,7 +1100,8 @@ const updateSessionToolbar = (session) => {
       pauseIcon.classList.remove('fa-play');
     }
     dom.sessionJsonBtn?.classList.add('active');
-    dom.sessionScrollBtn?.classList.add('active');
+    // Mirror global lock when no session (do not force auto-scroll on)
+    syncScrollLockFromActiveSession();
     return;
   }
   
@@ -1070,7 +1119,8 @@ const updateSessionToolbar = (session) => {
     pauseIcon.classList.toggle('fa-play', session.isPaused);
   }
   dom.sessionJsonBtn?.classList.toggle('active', session.jsonFormat);
-  dom.sessionScrollBtn?.classList.toggle('active', session.autoScroll);
+  // Keep session.autoScroll and header lock + both button UIs in sync
+  syncScrollLockFromActiveSession();
 };
 
 /**
@@ -1114,13 +1164,20 @@ const initSessionToolbar = () => {
     }
   });
   
-  // Auto Scroll
+  // Auto Scroll (mirrors header scroll lock)
   dom.sessionScrollBtn?.addEventListener('click', () => {
     const session = topicManager.getActiveSession();
     if (session) {
       session.autoScroll = !session.autoScroll;
-      dom.sessionScrollBtn.classList.toggle('active', session.autoScroll);
       scrollLocked = !session.autoScroll;
+      topicStorage.saveAll().catch(() => {});
+    } else {
+      // No active session: still control global scrollLocked
+      scrollLocked = !scrollLocked;
+    }
+    syncScrollLockFromActiveSession();
+    if (isAutoScrollEnabled()) {
+      scrollLogsToBottomIfNeeded();
     }
   });
 };
@@ -1186,10 +1243,8 @@ const renderActiveSessionLogs = () => {
   } else {
     dom.logContainer.appendChild(frag);
   }
-  
-  if (!scrollLocked) {
-    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
-  }
+
+  scrollLogsToBottomIfNeeded();
 };
 
 init();

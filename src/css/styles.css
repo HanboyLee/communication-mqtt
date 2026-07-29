@@ -796,9 +796,11 @@ input:focus, select:focus, textarea:focus {
     opacity: 0.8;
 }
 
-/* Logs Container */
+/* Logs Container — min-height:0 so flex child can shrink and scroll internally */
 .logs-area {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
     padding: 1.5rem;
     overflow-y: auto;
     display: flex;

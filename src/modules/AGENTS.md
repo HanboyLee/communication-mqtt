@@ -6,7 +6,7 @@
 
 | 文件 | 职责（一行） |
 |------|----------------|
-| `TopicManager.js` | Topic 会话状态与生命周期管理 |
+| `TopicManager.js` | Topic 会话状态与生命周期管理（含 `autoScroll`/`jsonFormat` 从配置恢复） |
 | `TopicRouter.js` | 将入站消息路由到对应会话 |
 | `TopicStorage.js` | 基于 `chrome.storage` 的会话持久化 |
 | `TabRenderer.js` | Topic Tab / 面板 UI 渲染 |

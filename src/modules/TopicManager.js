@@ -58,8 +58,9 @@ export class TopicSession {
     this.isSubscribed = false;
     this.isPaused = false;
     this.isMuted = false;
-    this.autoScroll = true;
-    this.jsonFormat = true;
+    // Honor persisted autoScroll; default on for new sessions
+    this.autoScroll = options.autoScroll !== undefined ? !!options.autoScroll : true;
+    this.jsonFormat = options.jsonFormat !== undefined ? !!options.jsonFormat : true;
     
     // 统计信息
     this.unreadCount = 0;
