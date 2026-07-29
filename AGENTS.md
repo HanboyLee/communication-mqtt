@@ -39,4 +39,11 @@ npm run watch   # 监听变更并构建
 3. **技术栈**：保持 **Vanilla JS + Chrome Extension APIs**；除非明确要求，不要引入框架重写。
 4. **改动范围**：任务相关、最小 diff；不要无关重构或编造新功能。
 5. **区域细节**：模块与 CSS 的更具体说明分别见对应目录下的 `AGENTS.md`。
-6. **强制规则**：见 [`.agents/rules/`](.agents/rules/)（尤其是 [禁止打包](.agents/rules/no-packaging.md)——不得协助用户打包/制作分发包）。
+6. **`src/` 变更必须同步分类 AGENTS.md**（按目录维护，勿把细节堆进根 `AGENTS.md`）：
+   - 改动 `src/modules/` → 更新 [`src/modules/AGENTS.md`](src/modules/AGENTS.md)（高层模块地图 / 一行职责，保持简短）
+   - 改动 `src/css/` 或新增 CSS 文件 → 更新 [`src/css/AGENTS.md`](src/css/AGENTS.md)
+   - 在 `src/` 下新建分类目录（如 `src/utils/`）→ 为该目录创建 `AGENTS.md`，并在根 `AGENTS.md` 的顶层目录表与「更细的区域说明」中补充链接
+   - 入口 / 横切改动（`sidepanel.js`、`sidepanel.html`）：仅当顶层结构职责变化时，在根 `AGENTS.md` 结构表作简短备注；工作落在子目录时优先改对应分类 `AGENTS.md`
+   - 更新风格：**按分类**、简洁表格 / 一行说明，禁止长篇实现细节
+   - 尽量与本次任务 / PR **一并完成**，勿事后补文档
+7. **强制规则**：见 [`.agents/rules/`](.agents/rules/)（尤其是 [禁止打包](.agents/rules/no-packaging.md)——不得协助用户打包/制作分发包）。
