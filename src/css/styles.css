@@ -934,14 +934,15 @@ input:focus, select:focus, textarea:focus {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 
 /* -------------------------------------------------------------------------- */
-/* Popup shell (data-shell="popup") — min 360×480; logs-area owns main scroll */
+/* Floating window shell (data-shell="window") — fill chrome.windows viewport */
+/* Header/footer fixed; main scroll ownership on .logs-area                   */
 /* -------------------------------------------------------------------------- */
 
-.popup-shell-banner {
+.window-shell-banner {
     display: none;
 }
 
-html[data-shell="popup"] .popup-shell-banner {
+html[data-shell="window"] .window-shell-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -956,20 +957,20 @@ html[data-shell="popup"] .popup-shell-banner {
     line-height: 1.35;
 }
 
-.popup-shell-banner-text {
+.window-shell-banner-text {
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
     min-width: 0;
 }
 
-.popup-shell-banner-text i {
+.window-shell-banner-text i {
     color: var(--status-warning, #f59e0b);
     margin-top: 0.15rem;
     flex-shrink: 0;
 }
 
-.popup-shell-banner-cta {
+.window-shell-banner-cta {
     flex-shrink: 0;
     white-space: nowrap;
     background: var(--accent-primary);
@@ -980,12 +981,12 @@ html[data-shell="popup"] .popup-shell-banner {
     font-size: 0.75rem;
 }
 
-.popup-shell-banner-cta:hover {
+.window-shell-banner-cta:hover {
     opacity: 0.9;
 }
 
-html[data-shell="popup"],
-html[data-shell="popup"] body {
+html[data-shell="window"],
+html[data-shell="window"] body {
     width: 100%;
     height: 100%;
     min-width: 360px;
@@ -993,21 +994,21 @@ html[data-shell="popup"] body {
     overflow: hidden;
 }
 
-html[data-shell="popup"] .app-container {
+html[data-shell="window"] .app-container {
     max-width: none;
     height: 100%;
-    min-height: 480px;
+    min-height: 100%;
     box-shadow: none;
 }
 
-html[data-shell="popup"] .logs-area {
+html[data-shell="window"] .logs-area {
     flex: 1 1 auto;
     min-height: 0; /* flex child can shrink so internal scroll works */
     overflow-y: auto;
 }
 
-html[data-shell="popup"] .settings-panel,
-html[data-shell="popup"] .topic-manage-panel {
+html[data-shell="window"] .settings-panel,
+html[data-shell="window"] .topic-manage-panel {
     max-height: 100%;
     overflow-y: auto;
 }

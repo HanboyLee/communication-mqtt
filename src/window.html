@@ -1,10 +1,10 @@
-<!-- GENERATED from sidepanel.html — do not edit by hand. Run: node scripts/generate-popup-html.mjs -->
+<!-- GENERATED from sidepanel.html — do not edit by hand. Run: node scripts/generate-window-html.mjs -->
 <!DOCTYPE html>
-<html lang="en" data-shell="popup">
+<html lang="en" data-shell="window">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Debugger (Popup)</title>
+    <title>WebSocket Debugger (Window)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -17,13 +17,13 @@
         <div class="bg-gradient-1"></div>
         <div class="bg-gradient-2"></div>
 
-        <!-- Popup-only lifetime banner (visible when data-shell=popup) -->
-        <div id="popupShellBanner" class="popup-shell-banner" role="status">
-            <div class="popup-shell-banner-text">
+        <!-- Floating-window lifetime banner (visible when data-shell=window) -->
+        <div id="windowShellBanner" class="window-shell-banner" role="status">
+            <div class="window-shell-banner-text">
                 <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-                <span>弹窗关闭后连接与实时日志会丢失。长时间调试请改用侧边栏。</span>
+                <span>关闭独立窗口后连接与实时日志会丢失。长时间调试请改用侧边栏。</span>
             </div>
-            <button type="button" id="switchToSidepanelBtn" class="btn btn-sm popup-shell-banner-cta">
+            <button type="button" id="switchToSidepanelBtn" class="btn btn-sm window-shell-banner-cta">
                 改用侧边栏
             </button>
         </div>
@@ -84,7 +84,7 @@
                             <span>打开方式</span>
                             <select id="cfgUiShell">
                                 <option value="sidepanel">侧边栏 (Side Panel)</option>
-                                <option value="popup">工具栏弹窗 (Popup)</option>
+                                <option value="window">独立窗口 (可拖动)</option>
                             </select>
                         </label>
                         <p class="form-hint" id="uiShellHint"></p>

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
 
-const required = ['background.js', 'sidepanel.html', 'popup.html'];
+const required = ['background.js', 'sidepanel.html', 'window.html'];
 
 let failed = 0;
 
@@ -23,27 +23,20 @@ for (const name of required) {
   }
 }
 
-const popupPath = resolve(dist, 'popup.html');
-if (existsSync(popupPath)) {
-  const html = readFileSync(popupPath, 'utf8');
-  if (!/data-shell\s*=\s*["']popup["']/.test(html)) {
-    console.error('❌ dist/popup.html missing data-shell="popup"');
+const windowPath = resolve(dist, 'window.html');
+if (existsSync(windowPath)) {
+  const html = readFileSync(windowPath, 'utf8');
+  if (!/data-shell\s*=\s*["']window["']/.test(html)) {
+    console.error('❌ dist/window.html missing data-shell="window"');
     failed++;
   } else {
-    console.log('✅ dist/popup.html has data-shell=popup');
+    console.log('✅ dist/window.html has data-shell=window');
   }
-  if (!html.includes('sidepanel.js') && !html.includes('sidepanel-')) {
-    // Vite rewrites script to hashed asset; either sidepanel chunk or script tag ok
-    // After build the script src points at assets/sidepanel-*.js or assets/popup-*.js
-    // Both should share the same module graph; just ensure a module script exists
-    if (!/<script\b[^>]*type=["']module["']/.test(html)) {
-      console.error('❌ dist/popup.html missing module script');
-      failed++;
-    } else {
-      console.log('✅ dist/popup.html has module script');
-    }
+  if (!/<script\b[^>]*type=["']module["']/.test(html)) {
+    console.error('❌ dist/window.html missing module script');
+    failed++;
   } else {
-    console.log('✅ dist/popup.html references app script');
+    console.log('✅ dist/window.html has module script');
   }
 }
 
@@ -58,11 +51,19 @@ if (existsSync(bgPath)) {
       failed++;
     }
   }
-  if (!src.includes('popup.html')) {
-    console.error('❌ background.js should setPopup popup.html');
-    failed++;
+  // Product: floating window via chrome.windows, not action.setPopup(html)
+  if (!src.includes('window.html') && !src.includes('windows.create')) {
+    // minified may keep string window.html
+    if (!src.includes('window.html')) {
+      console.error('❌ background.js should reference window.html for floating window');
+      failed++;
+    }
   } else {
-    console.log('✅ background.js references popup.html');
+    console.log('✅ background.js references floating window page');
+  }
+  if (src.includes("setPopup({popup:\"window") || src.includes("setPopup({ popup: 'window")) {
+    console.error('❌ background.js must not setPopup(window.html) — use chrome.windows');
+    failed++;
   }
   if (size > 50_000) {
     console.error(`❌ background.js too large (${size} bytes) — possible polyfill pollution`);

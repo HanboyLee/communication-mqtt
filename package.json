@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate:popup": "node scripts/generate-popup-html.mjs",
+    "generate:window": "node scripts/generate-window-html.mjs",
     "dev": "vite",
     "build": "vite build && node tests/check-dist-ui-shell.mjs",
     "watch": "vite build --watch",

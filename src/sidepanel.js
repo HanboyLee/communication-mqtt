@@ -16,8 +16,10 @@ const UI_SHELL_KEY = 'ws:uiShell';
 const UI_SHELL_POPUP_WARNED_KEY = 'ws:uiShellPopupWarned';
 const UI_SHELL_DEFAULT = 'sidepanel';
 
+/** Normalize shell; migrates legacy storage/HTML value "popup" → "window". */
 function normalizeUiShell(value) {
-  return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
+  if (value === 'window' || value === 'popup') return 'window';
+  return UI_SHELL_DEFAULT;
 }
 
 // Document shell from HTML only (do not infer from storage — panel may still be open after preference change)
@@ -26,7 +28,7 @@ function normalizeUiShell(value) {
     document.documentElement.getAttribute('data-shell') ||
     document.body?.getAttribute('data-shell') ||
     'sidepanel';
-  const shell = normalizeUiShell(raw === 'popup' ? 'popup' : 'sidepanel');
+  const shell = normalizeUiShell(raw);
   document.documentElement.setAttribute('data-shell', shell);
 })();
 
@@ -78,7 +80,7 @@ const dom = {
   sessionPauseBtn: document.getElementById('sessionPauseBtn'),
   sessionJsonBtn: document.getElementById('sessionJsonBtn'),
   sessionScrollBtn: document.getElementById('sessionScrollBtn'),
-  popupShellBanner: document.getElementById('popupShellBanner'),
+  windowShellBanner: document.getElementById('windowShellBanner'),
   switchToSidepanelBtn: document.getElementById('switchToSidepanelBtn')
 };
 
@@ -204,8 +206,8 @@ const persistConfig = async () => {
 const UI_SHELL_HINTS = {
   sidepanel:
     '点击扩展图标时打开侧边栏。适合长时间调试：切换标签时通常仍可保持连接与日志。此项立即保存，不需要点「应用并填充 URL」。',
-  popup:
-    '弹窗关闭后，当前页面内的连接与实时日志会丢失。长时间调试请使用侧边栏。此项立即保存，不需要点「应用并填充 URL」。'
+  window:
+    '点击扩展图标时打开可拖动的独立窗口（非工具栏弹窗）。关闭该窗口后，连接与实时日志会丢失。长时间调试请使用侧边栏。此项立即保存，不需要点「应用并填充 URL」。'
 };
 
 const updateUiShellHint = (shell) => {
@@ -227,7 +229,7 @@ const applyUiShellPreference = async (next) => {
   updateUiShellHint(shell);
   await chrome.storage.local.set({ [UI_SHELL_KEY]: shell });
   await notifyApplyUiShell();
-  const label = shell === 'popup' ? '工具栏弹窗 (Popup)' : '侧边栏 (Side Panel)';
+  const label = shell === 'window' ? '独立窗口 (可拖动)' : '侧边栏 (Side Panel)';
   pushLog('sys', `界面打开方式已设为${label}，将在下次点击扩展图标时生效。`);
 };
 
@@ -239,14 +241,14 @@ const onUiShellChange = async () => {
 
   if (next === previous) return;
 
-  if (next === 'popup') {
+  if (next === 'window') {
     const bag = await chrome.storage.local.get(UI_SHELL_POPUP_WARNED_KEY);
     const alreadyWarned = bag[UI_SHELL_POPUP_WARNED_KEY] === true;
     const needConfirm = status === Status.Connected || !alreadyWarned;
     if (needConfirm) {
       const ok = window.confirm(
-        '切换到工具栏弹窗后：关闭弹窗会销毁当前页面，WebSocket/MQTT 连接与内存中的实时日志都会丢失。\n\n' +
-          '长时间调试请继续使用侧边栏。确定改为弹窗吗？'
+        '切换到独立窗口后：关闭该窗口会销毁当前页面，WebSocket/MQTT 连接与内存中的实时日志都会丢失。\n\n' +
+          '长时间调试请继续使用侧边栏。确定改为独立窗口吗？'
       );
       if (!ok) {
         cfgDom.uiShell.value = previous;

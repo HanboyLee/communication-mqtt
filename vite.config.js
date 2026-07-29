@@ -1,13 +1,13 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
-import { generatePopupHtml } from './scripts/generate-popup-html.mjs';
+import { generateWindowHtml } from './scripts/generate-window-html.mjs';
 
-// Ensure popup.html exists before Rollup resolves multi-page inputs
-generatePopupHtml({ silent: true });
+// Ensure window.html exists before Rollup resolves multi-page inputs
+generateWindowHtml({ silent: true });
 
 /**
- * Scope node polyfills to the app (sidepanel/popup) graph only.
+ * Scope node polyfills to the app (sidepanel/window) graph only.
  * Background SW must stay free of mqtt/node polyfill bloat.
  */
 function nodePolyfillsAppOnly(options) {
@@ -51,21 +51,21 @@ function nodePolyfillsAppOnly(options) {
   };
 }
 
-/** Rebuild popup.html when sidepanel.html changes (dev/watch). */
-function generatePopupHtmlPlugin() {
+/** Rebuild window.html when sidepanel.html changes (dev/watch). */
+function generateWindowHtmlPlugin() {
   const sidepanelAbs = resolve(__dirname, 'src/sidepanel.html');
   return {
-    name: 'generate-popup-html',
+    name: 'generate-window-html',
     buildStart() {
-      generatePopupHtml({ silent: true });
+      generateWindowHtml({ silent: true });
       this.addWatchFile(sidepanelAbs);
     },
     configureServer(server) {
-      generatePopupHtml({ silent: true });
+      generateWindowHtml({ silent: true });
       server.watcher.add(sidepanelAbs);
       server.watcher.on('change', (file) => {
         if (resolve(file) === sidepanelAbs) {
-          generatePopupHtml({ silent: true });
+          generateWindowHtml({ silent: true });
         }
       });
     }
@@ -82,7 +82,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'src/sidepanel.html'),
-        popup: resolve(__dirname, 'src/popup.html'),
+        window: resolve(__dirname, 'src/window.html'),
         background: resolve(__dirname, 'src/background.js')
       },
       output: {
@@ -96,7 +96,7 @@ export default defineConfig({
     }
   },
   plugins: [
-    generatePopupHtmlPlugin(),
+    generateWindowHtmlPlugin(),
     nodePolyfillsAppOnly({
       include: ['stream', 'buffer', 'process', 'util', 'events']
     })

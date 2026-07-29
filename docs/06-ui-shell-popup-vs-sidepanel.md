@@ -1,34 +1,52 @@
-# 设计文档：用户可选 UI Shell（Popup vs Side Panel）
+# 设计文档：用户可选 UI Shell（独立窗口 vs Side Panel）
 
 | 字段 | 内容 |
 |------|------|
-| **Title** | User-selectable UI shell: Popup vs Side Panel |
+| **Title** | User-selectable UI shell: Floating Window vs Side Panel |
 | **Author** | TBD |
 | **Date** | 2026-07-29 |
-| **Status** | Draft（修订 r2 — 回应 design review） |
-| **Repo** | `D:\googleExtension\websocketExtension`（及 AO worktree `websocketext-orchestrator`） |
-| **Related** | `public/manifest.json`, `src/sidepanel.html`, `src/sidepanel.js`, `vite.config.js`, `src/css/styles.css` |
+| **Status** | Implemented（修订 r3 — **产品变更：取消 action popup，改用 `chrome.windows.create` 可拖动独立窗口**） |
+| **Repo** | `D:\googleExtension\websocketExtension`（及 AO worktree） |
+| **Related** | `public/manifest.json`, `src/background.js`, `src/sidepanel.html`, `src/window.html`（生成）, `src/sidepanel.js`, `vite.config.js`, `src/css/styles.css` |
+
+---
+
+## Product revision (r3 — authoritative)
+
+**用户明确不要** `chrome.action` 工具栏锚定 Popup。仅两种模式：
+
+| `ws:uiShell` | 工具栏点击行为 |
+|--------------|----------------|
+| `sidepanel`（默认） | `setPanelBehavior({ openPanelOnActionClick: true })`；**不** `setPopup`；不依赖 `action.onClicked` |
+| `window` | `openPanelOnActionClick: false` + `setPopup('')`；`action.onClicked` → `openOrFocusFloatingWindow()` |
+
+浮动窗口规则：
+
+- `chrome.windows.create({ url: window.html, type: 'popup', width: 420, height: 浏览器 normal 窗口高度 })`（`type: 'popup'` 仅表示 chromeless 工具窗，**仍可拖动/调整大小**，不是 action popup）。
+- SW 内存跟踪 `floatingWindowId`；已存在则 `windows.update({ focused: true })`，**不**开第二窗；`windows.onRemoved` 清 id。
+- 旧值 `popup` 在 `normalizeUiShell` 中迁移为 `window`。
+- 权限：`storage` + `sidePanel` + **`windows`**。
+- 生成孪生页：`src/window.html`（`data-shell=window`），UI 文案「独立窗口 (可拖动)」。
+
+下文 r2 中凡写 “Action Popup / setPopup(popup.html) 作为业务 UI” 的部分 **以 r3 为准作废**；其余（单 bundle、设置顶栏、pagehide teardown、`pushLog` 反馈）仍适用，只是 shell 名改为 window。
 
 ---
 
 ## Overview
 
-当前扩展通过 Chrome **Side Panel** 承载调试 UI：`manifest.json` 声明 `side_panel.default_path = sidepanel.html`，`action` **没有** `default_popup`，也 **没有** service worker。仓库内 **没有任何** `sidePanel.setPanelBehavior` 调用。因此：
-
-- 用户今天打开 UI 的主路径更可能是 Chrome 全局 Side Panel UI / 扩展管理入口，**而不是**「点击工具栏图标即打开侧栏」；
-- 引入 SW 并执行 `openPanelOnActionClick: true` 会 **有意改善/钉死**「点击图标 → Side Panel」这一默认路径（见 PR-1），不是“零可感知差异”。
+扩展通过 Chrome **Side Panel** 与可选 **独立浮动窗口** 承载调试 UI。
 
 用户希望在两种打开方式间自由选择：
 
 1. **Side Panel**（默认）：侧边面板，适合长时间调试、跨标签导航仍保持连接与日志。
-2. **Action Popup**（工具栏弹窗）：打开快、适合快速查看，但关闭后文档销毁。
+2. **独立窗口**（可拖动）：`chrome.windows.create` 打开完整 UI 孪生页，可移到任意显示器位置；关闭后文档与连接销毁。
 
 本设计在 **不复制** `sidepanel.js` 业务逻辑的前提下：
 
-- 用 `chrome.storage.local` 键 `ws:uiShell` 持久化偏好（默认 `sidepanel`）；
-- 用 **MV3 service worker** 在 install / startup / storage 变更 / 显式消息时，**成对、有序**配置 `sidePanel.setPanelBehavior` 与 `action.setPopup`；
-- 用 **完整 DOM 的 HTML 孪生页** `popup.html`（由构建从 `sidepanel.html` 生成，仅 `data-shell` 等差异）+ **同一** `sidepanel.js` bundle；
-- Popup 视口下用 `[data-shell="popup"]` CSS 保证可滚动与页脚可见。
+- 用 `chrome.storage.local` 键 `ws:uiShell` 持久化偏好（默认 `sidepanel`；合法值 `sidepanel` \| `window`）；
+- 用 **MV3 service worker** 配置 `sidePanel.setPanelBehavior`，并在 window 模式用 `action.onClicked` + `chrome.windows` 打开/聚焦；
+- 用 **完整 DOM 的 HTML 孪生页** `window.html`（由构建从 `sidepanel.html` 生成，`data-shell=window`）+ **同一** `sidepanel.js` bundle；
+- 浮动窗视口下用 `[data-shell="window"]` CSS 保证日志区滚动与页脚可见。
 
 ---
 

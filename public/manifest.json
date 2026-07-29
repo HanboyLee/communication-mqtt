@@ -5,7 +5,8 @@
   "description": "WebSocket 调试工具，基于 Side Panel，支持自动断开、日志、历史与暗色模式。",
   "permissions": [
     "storage",
-    "sidePanel"
+    "sidePanel",
+    "windows"
   ],
   "background": {
     "service_worker": "background.js",
