@@ -25,9 +25,8 @@
 |--------|------|
 | `html[data-shell="sidepanel"]` | 默认侧边栏；全高 `100vh`，主滚动在 `.logs-area` |
 | `html[data-shell="window"]` | 独立浮动窗口（`chrome.windows.create`，非 action popup）：填满窗口视口；**主滚动在 `.logs-area`**（`min-height: 0` + `overflow-y: auto`）；header/footer 固定可见；设置/主题抽屉内部自滚 |
-| `.window-shell-banner` | 默认隐藏；仅 `html[data-shell="window"]` 显示寿命警告 +「改用侧边栏」CTA |
 
-滚动所有权：header / topic tabs / session toolbar / footer 固定；消息区 `.logs-area` 滚动。
+滚动所有权：header / topic tabs / session toolbar / footer 固定；消息区 `.logs-area` 滚动。窗口寿命警告仅在设置「界面」hint / confirm 中说明，无壳内 banner。
 
 ## 约定
 

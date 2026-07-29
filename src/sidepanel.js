@@ -79,9 +79,7 @@ const dom = {
   sessionClearBtn: document.getElementById('sessionClearBtn'),
   sessionPauseBtn: document.getElementById('sessionPauseBtn'),
   sessionJsonBtn: document.getElementById('sessionJsonBtn'),
-  sessionScrollBtn: document.getElementById('sessionScrollBtn'),
-  windowShellBanner: document.getElementById('windowShellBanner'),
-  switchToSidepanelBtn: document.getElementById('switchToSidepanelBtn')
+  sessionScrollBtn: document.getElementById('sessionScrollBtn')
 };
 
 const cfgDom = {
@@ -646,16 +644,6 @@ const initEvents = () => {
   // UI shell preference — immediate apply; NOT via applyConfigBtn
   cfgDom.uiShell?.addEventListener('change', () => {
     onUiShellChange();
-  });
-
-  // Popup banner CTA → switch preference to sidepanel (takes effect next toolbar click)
-  dom.switchToSidepanelBtn?.addEventListener('click', async () => {
-    if (cfgDom.uiShell) {
-      cfgDom.uiShell.value = 'sidepanel';
-      cfgDom.uiShell.dataset.current = 'sidepanel';
-    }
-    updateUiShellHint('sidepanel');
-    await applyUiShellPreference('sidepanel');
   });
 };
 
