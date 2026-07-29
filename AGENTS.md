@@ -1,21 +1,24 @@
 # AGENTS.md
 
-本仓库是 **Chrome 扩展（Manifest V3）**，通过 Side Panel 提供 WebSocket / MQTT-over-WebSocket 调试工具：连接、收发、日志、历史与主题切换等。
+本仓库是 **Chrome 扩展（Manifest V3）**，通过 Side Panel（默认）或 **可拖动独立窗口**（`chrome.windows.create`，非工具栏 action popup）提供 WebSocket / MQTT-over-WebSocket 调试工具：连接、收发、日志、历史与主题切换等。
 
 ## 顶层目录职责
 
 | 路径 | 职责 |
 |------|------|
-| `src/` | 应用源码入口：Side Panel UI（`sidepanel.html`）与主编排逻辑（`sidepanel.js`） |
+| `src/` | 应用入口：手维 `sidepanel.html`（`data-shell=sidepanel`）+ 主编排 `sidepanel.js`；`window.html` 由脚本从 sidepanel **生成**（`data-shell=window`，完整 DOM 孪生，勿手改） |
+| `src/background.js` | MV3 service worker：`ws:uiShell` → `setPanelBehavior` + **永不** `setPopup` 业务页；`window` 模式用 `action.onClicked` + `chrome.windows` 打开/聚焦唯一浮动窗；`storage.onChanged` + `APPLY_UI_SHELL`；**禁止** import 业务/mqtt/modules |
+| Storage | `ws:uiShell`（`sidepanel`\|`window`，默认 sidepanel；旧值 `popup` 迁移为 `window`）、`ws:uiShellPopupWarned`（独立窗口首次 confirm 标记） |
+| `scripts/generate-window-html.mjs` | 从 `sidepanel.html` 生成 `src/window.html`（Vite 配置加载 / buildStart 自动跑） |
 | `src/modules/` | 多 Topic / 会话相关的模块化领域逻辑（状态、路由、持久化、Tab 渲染） |
-| `src/css/` | 样式表集中管理（主题变量与 UI 样式）；**不要**再把样式写回单文件根路径 `src/styles.css` |
-| `public/` | 扩展静态资源与 `manifest.json`（图标等） |
-| `docs/` | 给人看的架构 / 产品 / 开发文档 |
-| `tests/` | 测试（含 Node 与简易 HTML 用例） |
+| `src/css/` | 样式表集中管理（主题变量与 UI 样式、`[data-shell=window]`）；**不要**再把样式写回单文件根路径 `src/styles.css` |
+| `public/` | 扩展静态资源与 `manifest.json`（权限含 `storage` / `sidePanel` / `windows`）；`background.service_worker` → `background.js`；无静态 `default_popup` |
+| `docs/` | 给人看的架构 / 产品 / 开发文档（含 UI shell 设计 `docs/06-ui-shell-popup-vs-sidepanel.md`） |
+| `tests/` | 测试（含 Node 与简易 HTML 用例；`ui-shell` normalize + `dist/{background,sidepanel,window}` 断言） |
 | `prototype/` | 早期 UI 原型，**仅作参考**，不是运行时依赖 |
 | `assets/` | 截图等媒体资源 |
-| `dist/` | Vite 构建产物（加载扩展时选此目录） |
-| `vite.config.js` / `package.json` / `tailwind.config.js` / `postcss.config.js` 等 | 构建与工具链配置 |
+| `dist/` | Vite 构建产物（加载扩展时选此目录）；固定 `dist/background.js`，含 `sidepanel.html` + `window.html`，app 资源可 content-hash |
+| `vite.config.js` / `package.json` / `tailwind.config.js` / `postcss.config.js` 等 | 构建与工具链配置（多入口：sidepanel + window HTML + background SW；polyfill 不污染 SW） |
 
 更细的区域说明见：
 

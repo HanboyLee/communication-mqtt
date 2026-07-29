@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-shell="sidepanel">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -48,9 +48,6 @@
                 <button id="clearBtn" class="btn btn-icon btn-sm" title="清空日志">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
-                <button id="scrollLockBtn" class="btn btn-icon btn-sm" title="切换滚动锁定">
-                    <i class="fa-solid fa-lock-open"></i>
-                </button>
                 <button id="themeBtn" class="btn btn-icon btn-sm" title="切换主题">
                     <i class="fa-solid fa-moon"></i>
                 </button>
@@ -64,6 +61,22 @@
                 <button id="closeSettingsBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="settings-content">
+                <!-- 界面（Chrome 全局打开方式，非连接配置） -->
+                <div class="form-section" data-section="ui-shell">
+                    <h4 class="section-label">界面</h4>
+                    <div class="form-group">
+                        <label>
+                            <span>打开方式</span>
+                            <select id="cfgUiShell">
+                                <option value="sidepanel">侧边栏 (Side Panel)</option>
+                                <option value="window">独立窗口 (可拖动)</option>
+                            </select>
+                        </label>
+                        <p class="form-hint" id="uiShellHint"></p>
+                    </div>
+                </div>
+                <div class="divider"></div>
+
                 <div class="form-group grid-2">
                     <label>
                         <span>模式</span>
