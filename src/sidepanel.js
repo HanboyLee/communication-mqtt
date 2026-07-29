@@ -49,7 +49,6 @@ const dom = {
   historySizeInput: document.getElementById('historySizeInput'),
   connectBtn: document.getElementById('connectBtn'),
   clearBtn: document.getElementById('clearBtn'),
-  scrollLockBtn: document.getElementById('scrollLockBtn'),
   themeBtn: document.getElementById('themeBtn'),
   logContainer: document.getElementById('logContainer'),
   messageInput: document.getElementById('messageInput'),
@@ -108,7 +107,8 @@ let mqttClient = null;
 let mode = 'mqtt';
 let status = Status.Disconnected;
 let logs = [];
-let scrollLocked = false;
+/** Fallback when no active topic session (session.autoScroll is source of truth with a session). */
+let globalAutoScroll = true;
 let history = [];
 let historySize = 5;
 let idleSeconds = 0;
@@ -415,29 +415,20 @@ const renderLogs = () => {
 /**
  * Auto-scroll source of truth:
  * - active session → session.autoScroll
- * - no session → !scrollLocked (global header lock)
+ * - no session → globalAutoScroll
  */
 const isAutoScrollEnabled = () => {
   const s = topicManager.getActiveSession();
-  return s ? !!s.autoScroll : !scrollLocked;
+  return s ? !!s.autoScroll : globalAutoScroll;
 };
 
-/** Keep global scrollLocked + both button UIs aligned with active session. */
-const syncScrollLockFromActiveSession = () => {
+/** Keep the session toolbar auto-scroll button aligned with active preference. */
+const syncAutoScrollUi = () => {
   const s = topicManager.getActiveSession();
-  if (s) {
-    scrollLocked = !s.autoScroll;
-  }
-  const autoOn = s ? !!s.autoScroll : !scrollLocked;
+  const autoOn = s ? !!s.autoScroll : globalAutoScroll;
   if (dom.sessionScrollBtn) {
     dom.sessionScrollBtn.classList.toggle('active', autoOn);
     dom.sessionScrollBtn.title = autoOn ? '自动滚动 (开)' : '自动滚动 (关)';
-  }
-  if (dom.scrollLockBtn) {
-    dom.scrollLockBtn.innerHTML = scrollLocked
-      ? '<i class="fa-solid fa-lock"></i>'
-      : '<i class="fa-solid fa-lock-open"></i>';
-    dom.scrollLockBtn.title = scrollLocked ? '滚动已锁定（关闭自动滚动）' : '切换滚动锁定';
   }
 };
 
@@ -587,19 +578,6 @@ const sendMessage = () => {
   dom.messageInput.value = ''; // Clear input
 };
 
-const toggleScrollLock = () => {
-  scrollLocked = !scrollLocked;
-  const session = topicManager.getActiveSession();
-  if (session) {
-    session.autoScroll = !scrollLocked;
-    topicStorage.saveAll().catch(() => {});
-  }
-  syncScrollLockFromActiveSession();
-  if (!scrollLocked) {
-    scrollLogsToBottomIfNeeded();
-  }
-};
-
 const applyTheme = (nextTheme) => {
   document.documentElement.setAttribute('data-theme', nextTheme);
   theme = nextTheme;
@@ -621,7 +599,6 @@ const initEvents = () => {
     logs = [];
     renderLogs();
   });
-  dom.scrollLockBtn.addEventListener('click', toggleScrollLock);
   dom.themeBtn.addEventListener('click', toggleTheme);
   dom.sendBtn.addEventListener('click', sendMessage);
 
@@ -836,7 +813,7 @@ const initMultiTopic = async () => {
   // Set up TabRenderer callbacks
   tabRenderer.onTabClick = (sessionId) => {
     topicManager.switchToSession(sessionId);
-    syncScrollLockFromActiveSession();
+    syncAutoScrollUi();
     renderActiveSessionLogs();
   };
   
@@ -865,8 +842,8 @@ const initMultiTopic = async () => {
   
   // Initialize session toolbar
   initSessionToolbar();
-  // Align scrollLocked + buttons with restored session.autoScroll
-  syncScrollLockFromActiveSession();
+  // Align auto-scroll button with restored session.autoScroll
+  syncAutoScrollUi();
   renderActiveSessionLogs();
   
   // === Topic Management Panel ===
@@ -1100,8 +1077,7 @@ const updateSessionToolbar = (session) => {
       pauseIcon.classList.remove('fa-play');
     }
     dom.sessionJsonBtn?.classList.add('active');
-    // Mirror global lock when no session (do not force auto-scroll on)
-    syncScrollLockFromActiveSession();
+    syncAutoScrollUi();
     return;
   }
   
@@ -1119,8 +1095,7 @@ const updateSessionToolbar = (session) => {
     pauseIcon.classList.toggle('fa-play', session.isPaused);
   }
   dom.sessionJsonBtn?.classList.toggle('active', session.jsonFormat);
-  // Keep session.autoScroll and header lock + both button UIs in sync
-  syncScrollLockFromActiveSession();
+  syncAutoScrollUi();
 };
 
 /**
@@ -1164,18 +1139,16 @@ const initSessionToolbar = () => {
     }
   });
   
-  // Auto Scroll (mirrors header scroll lock)
+  // Auto Scroll (single control — session.autoScroll, or global when no session)
   dom.sessionScrollBtn?.addEventListener('click', () => {
     const session = topicManager.getActiveSession();
     if (session) {
       session.autoScroll = !session.autoScroll;
-      scrollLocked = !session.autoScroll;
       topicStorage.saveAll().catch(() => {});
     } else {
-      // No active session: still control global scrollLocked
-      scrollLocked = !scrollLocked;
+      globalAutoScroll = !globalAutoScroll;
     }
-    syncScrollLockFromActiveSession();
+    syncAutoScrollUi();
     if (isAutoScrollEnabled()) {
       scrollLogsToBottomIfNeeded();
     }
