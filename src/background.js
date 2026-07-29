@@ -6,8 +6,7 @@
 const UI_SHELL_KEY = 'ws:uiShell';
 const UI_SHELL_DEFAULT = 'sidepanel';
 
-// PR-2 temporary: use sidepanel.html until popup twin (PR-3) exists.
-const POPUP_PAGE = 'sidepanel.html';
+const POPUP_PAGE = 'popup.html';
 
 function normalizeUiShell(value) {
   return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;

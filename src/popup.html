@@ -1,0 +1,291 @@
+<!-- GENERATED from sidepanel.html — do not edit by hand. Run: node scripts/generate-popup-html.mjs -->
+<!DOCTYPE html>
+<html lang="en" data-shell="popup">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Debugger (Popup)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Background Gradients -->
+        <div class="bg-gradient-1"></div>
+        <div class="bg-gradient-2"></div>
+
+        <!-- Popup-only lifetime banner (visible when data-shell=popup) -->
+        <div id="popupShellBanner" class="popup-shell-banner" role="status">
+            <div class="popup-shell-banner-text">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                <span>弹窗关闭后连接与实时日志会丢失。长时间调试请改用侧边栏。</span>
+            </div>
+            <button type="button" id="switchToSidepanelBtn" class="btn btn-sm popup-shell-banner-cta">
+                改用侧边栏
+            </button>
+        </div>
+
+        <!-- Header -->
+        <header class="header blur-glass">
+            <div class="header-main">
+                <div class="status-indicator" id="statusDot" data-status="disconnected" title="已断开"></div>
+                <div class="input-stack">
+                    <div class="input-group url-input-group">
+                        <i class="fa-solid fa-link input-icon"></i>
+                        <input type="text" id="urlInput" placeholder="wss://echo.websocket.org" autocomplete="off">
+                    </div>
+                </div>
+                <button id="connectBtn" class="btn btn-primary">
+                    <span class="btn-text">连接</span>
+                    <i class="fa-solid fa-plug"></i>
+                </button>
+                <button id="settingsToggleBtn" class="btn btn-icon" title="设置">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
+            </div>
+            
+            <div class="header-toolbar">
+                <div class="tool-group">
+                    <span class="label">空闲(秒)</span>
+                    <input type="number" id="idleInput" class="input-mini" min="0" value="0">
+                </div>
+                <div class="tool-group">
+                    <span class="label">历史</span>
+                    <input type="number" id="historySizeInput" class="input-mini" min="1" max="50" value="5">
+                </div>
+                <div class="spacer"></div>
+                <button id="clearBtn" class="btn btn-icon btn-sm" title="清空日志">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                <button id="scrollLockBtn" class="btn btn-icon btn-sm" title="切换滚动锁定">
+                    <i class="fa-solid fa-lock-open"></i>
+                </button>
+                <button id="themeBtn" class="btn btn-icon btn-sm" title="切换主题">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Settings Drawer (Slide-in) -->
+        <aside id="settingsPanel" class="settings-panel blur-glass">
+            <div class="settings-header">
+                <h3>高级配置</h3>
+                <button id="closeSettingsBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="settings-content">
+                <!-- 界面（Chrome 全局打开方式，非连接配置） -->
+                <div class="form-section" data-section="ui-shell">
+                    <h4 class="section-label">界面</h4>
+                    <div class="form-group">
+                        <label>
+                            <span>打开方式</span>
+                            <select id="cfgUiShell">
+                                <option value="sidepanel">侧边栏 (Side Panel)</option>
+                                <option value="popup">工具栏弹窗 (Popup)</option>
+                            </select>
+                        </label>
+                        <p class="form-hint" id="uiShellHint"></p>
+                    </div>
+                </div>
+                <div class="divider"></div>
+
+                <div class="form-group grid-2">
+                    <label>
+                        <span>模式</span>
+                        <select id="cfgMode">
+                            <option value="ws">WebSocket</option>
+                            <option value="mqtt">MQTT (WS)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>协议</span>
+                        <select id="cfgProtocol">
+                            <option value="ws">ws://</option>
+                            <option value="wss">wss://</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>客户端 ID (MQTT)</span>
+                        <input type="text" id="cfgClientId" placeholder="mqttjs_random">
+                    </label>
+                </div>
+
+                <div class="form-group grid-3-1">
+                    <label>
+                        <span>主机</span>
+                        <input type="text" id="cfgHost" placeholder="localhost">
+                    </label>
+                    <label>
+                        <span>端口</span>
+                        <input type="number" id="cfgPort" placeholder="8084">
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>路径</span>
+                        <input type="text" id="cfgPath" placeholder="/ws">
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group">
+                     <label>
+                        <input type="checkbox" id="cfgSsl">
+                        <span>安全模式 (SSL/TLS) - 自动 wss://</span>
+                    </label>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-group grid-2">
+                    <label>
+                        <span>用户名</span>
+                        <input type="text" id="cfgUsername" placeholder="选填">
+                    </label>
+                    <label>
+                        <span>密码</span>
+                        <input type="password" id="cfgPassword" placeholder="选填">
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span>发布主题 (选填)</span>
+                        <input type="text" id="cfgPubTopic" placeholder="默认同订阅主题">
+                    </label>
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="cfgAutoReconnect">
+                        <span>MQTT 自动重连</span>
+                    </label>
+                </div>
+
+                <div class="preview-box">
+                    <span class="preview-label">预览 URL</span>
+                    <code id="cfgPreview">ws://localhost:8084/ws</code>
+                </div>
+
+                <button id="applyConfigBtn" class="btn btn-full btn-secondary">应用并填充 URL</button>
+            </div>
+        </aside>
+
+        <!-- Topic Management Panel -->
+        <aside id="topicManagePanel" class="topic-manage-panel blur-glass">
+            <div class="panel-header">
+                <h3><i class="fa-solid fa-layer-group"></i> 主题管理</h3>
+                <button id="closeTopicPanelBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="panel-content custom-scrollbar">
+                <!-- Add Topic Form -->
+                <div class="add-topic-form">
+                    <div class="form-row">
+                        <input type="text" id="newTopicInput" placeholder="输入主题 (支持 + 和 # 通配符)" autocomplete="off">
+                        <button id="addTopicSubmitBtn" class="btn btn-primary btn-sm">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="form-hint">
+                        <span><code>+</code> 单级通配</span>
+                        <span><code>#</code> 多级通配</span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Topic List -->
+                <div class="topic-list-header">
+                    <span>已订阅主题</span>
+                    <span id="topicCount" class="badge">0</span>
+                </div>
+                <div id="topicList" class="topic-list">
+                    <!-- Topics will be injected here -->
+                    <div class="empty-hint">
+                        <i class="fa-solid fa-inbox"></i>
+                        <p>暂无订阅主题</p>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Quick Actions -->
+                <div class="panel-actions">
+                    <button id="toggleSubscribeAllBtn" class="btn btn-secondary btn-sm btn-full">
+                        <i class="fa-solid fa-play"></i> <span>订阅全部</span>
+                    </button>
+                    <button id="clearAllTopicsBtn" class="btn btn-danger btn-sm btn-full">
+                        <i class="fa-solid fa-trash"></i> 清空主题
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Topic Tab Bar (Multi-topic feature) -->
+        <div id="topicTabBar" class="topic-tab-bar">
+            <div id="topicTabs" class="topic-tabs custom-scrollbar">
+                <!-- Tabs will be injected here by TabRenderer -->
+            </div>
+            <button id="addTopicBtn" class="btn btn-icon btn-sm tab-action-btn" title="添加主题">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <button id="manageTopicsBtn" class="btn btn-icon btn-sm tab-action-btn" title="管理主题">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+
+        <!-- Session Toolbar -->
+        <div id="sessionToolbar" class="session-toolbar">
+            <div class="session-info">
+                <span id="sessionTopicDisplay" class="session-topic">未选择主题</span>
+                <span id="sessionMsgCount" class="session-stats">0 条消息</span>
+            </div>
+            <div class="session-actions">
+                <button id="sessionClearBtn" class="btn-tool" title="清空日志">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                <button id="sessionPauseBtn" class="btn-tool" title="暂停接收">
+                    <i class="fa-solid fa-pause"></i>
+                </button>
+                <button id="sessionJsonBtn" class="btn-tool active" title="JSON 格式化">
+                    <i class="fa-solid fa-code"></i>
+                </button>
+                <button id="sessionScrollBtn" class="btn-tool active" title="自动滚动">
+                    <i class="fa-solid fa-angles-down"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Log Area -->
+        <main id="logContainer" class="logs-area custom-scrollbar">
+            <div class="empty-state">
+                <i class="fa-solid fa-satellite-dish"></i>
+                <p>准备连接</p>
+            </div>
+            <!-- Logs will be injected here -->
+        </main>
+
+        <!-- Footer / Input -->
+        <footer class="footer blur-glass">
+            <div id="historyChips" class="history-chips">
+                <!-- Chips injected here -->
+            </div>
+            <div class="input-area">
+                <textarea id="messageInput" rows="1" placeholder="输入消息... (Ctrl+Enter 发送)"></textarea>
+                <button id="sendBtn" class="btn btn-round btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+    <script type="module" src="/sidepanel.js"></script>
+</body>
+</html>

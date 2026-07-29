@@ -1,6 +1,10 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { generatePopupHtml } from './scripts/generate-popup-html.mjs';
+
+// Ensure popup.html exists before Rollup resolves multi-page inputs
+generatePopupHtml({ silent: true });
 
 /**
  * Scope node polyfills to the app (sidepanel/popup) graph only.
@@ -21,14 +25,12 @@ function nodePolyfillsAppOnly(options) {
         if (isBackground(id) || (typeof rest[0] === 'string' && isBackground(rest[0]))) {
           return null;
         }
-        // importer is often 2nd arg for resolveId
         if (rest[0] && typeof rest[0] === 'string' && isBackground(rest[0])) {
           return null;
         }
         return hook.call(this, id, ...rest);
       };
     }
-    // { handler, order, ... }
     return {
       ...hook,
       handler(id, ...rest) {
@@ -49,6 +51,27 @@ function nodePolyfillsAppOnly(options) {
   };
 }
 
+/** Rebuild popup.html when sidepanel.html changes (dev/watch). */
+function generatePopupHtmlPlugin() {
+  const sidepanelAbs = resolve(__dirname, 'src/sidepanel.html');
+  return {
+    name: 'generate-popup-html',
+    buildStart() {
+      generatePopupHtml({ silent: true });
+      this.addWatchFile(sidepanelAbs);
+    },
+    configureServer(server) {
+      generatePopupHtml({ silent: true });
+      server.watcher.add(sidepanelAbs);
+      server.watcher.on('change', (file) => {
+        if (resolve(file) === sidepanelAbs) {
+          generatePopupHtml({ silent: true });
+        }
+      });
+    }
+  };
+}
+
 export default defineConfig({
   root: 'src',
   base: './',
@@ -59,6 +82,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'src/sidepanel.html'),
+        popup: resolve(__dirname, 'src/popup.html'),
         background: resolve(__dirname, 'src/background.js')
       },
       output: {
@@ -72,6 +96,7 @@ export default defineConfig({
     }
   },
   plugins: [
+    generatePopupHtmlPlugin(),
     nodePolyfillsAppOnly({
       include: ['stream', 'buffer', 'process', 'util', 'events']
     })

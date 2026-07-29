@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-shell="sidepanel">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +15,17 @@
         <!-- Background Gradients -->
         <div class="bg-gradient-1"></div>
         <div class="bg-gradient-2"></div>
+
+        <!-- Popup-only lifetime banner (visible when data-shell=popup) -->
+        <div id="popupShellBanner" class="popup-shell-banner" role="status">
+            <div class="popup-shell-banner-text">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                <span>弹窗关闭后连接与实时日志会丢失。长时间调试请改用侧边栏。</span>
+            </div>
+            <button type="button" id="switchToSidepanelBtn" class="btn btn-sm popup-shell-banner-cta">
+                改用侧边栏
+            </button>
+        </div>
 
         <!-- Header -->
         <header class="header blur-glass">

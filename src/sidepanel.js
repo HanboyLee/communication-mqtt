@@ -20,6 +20,16 @@ function normalizeUiShell(value) {
   return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
 }
 
+// Document shell from HTML only (do not infer from storage — panel may still be open after preference change)
+(() => {
+  const raw =
+    document.documentElement.getAttribute('data-shell') ||
+    document.body?.getAttribute('data-shell') ||
+    'sidepanel';
+  const shell = normalizeUiShell(raw === 'popup' ? 'popup' : 'sidepanel');
+  document.documentElement.setAttribute('data-shell', shell);
+})();
+
 const storageKeys = {
   url: 'ws:url',
   idleSeconds: 'ws:idleSeconds',
@@ -67,7 +77,9 @@ const dom = {
   sessionClearBtn: document.getElementById('sessionClearBtn'),
   sessionPauseBtn: document.getElementById('sessionPauseBtn'),
   sessionJsonBtn: document.getElementById('sessionJsonBtn'),
-  sessionScrollBtn: document.getElementById('sessionScrollBtn')
+  sessionScrollBtn: document.getElementById('sessionScrollBtn'),
+  popupShellBanner: document.getElementById('popupShellBanner'),
+  switchToSidepanelBtn: document.getElementById('switchToSidepanelBtn')
 };
 
 const cfgDom = {
@@ -633,6 +645,40 @@ const initEvents = () => {
   cfgDom.uiShell?.addEventListener('change', () => {
     onUiShellChange();
   });
+
+  // Popup banner CTA → switch preference to sidepanel (takes effect next toolbar click)
+  dom.switchToSidepanelBtn?.addEventListener('click', async () => {
+    if (cfgDom.uiShell) {
+      cfgDom.uiShell.value = 'sidepanel';
+      cfgDom.uiShell.dataset.current = 'sidepanel';
+    }
+    updateUiShellHint('sidepanel');
+    await applyUiShellPreference('sidepanel');
+  });
+};
+
+/** Both shells: persist config and tear down sockets/timers on document unload. */
+const onDocumentTeardown = () => {
+  try {
+    persistState();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    persistConfig();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    stopIdleWatcher();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    disconnect();
+  } catch (_) {
+    /* ignore */
+  }
 };
 
 let currentSubscribedTopic = '';
@@ -735,7 +781,10 @@ const init = async () => {
   await loadState();
   await loadConfig();
   initEvents();
-  
+
+  // pagehide on both shells — MQTT timer hygiene + persist before destroy
+  window.addEventListener('pagehide', onDocumentTeardown);
+
   // Initialize multi-topic system
   await initMultiTopic();
 };

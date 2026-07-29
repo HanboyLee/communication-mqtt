@@ -6,18 +6,19 @@
 
 | 路径 | 职责 |
 |------|------|
-| `src/` | 应用源码入口：Side Panel UI（`sidepanel.html`）与主编排逻辑（`sidepanel.js`）；可选生成孪生 `popup.html`（`data-shell=popup`，构建产物） |
-| `src/background.js` | MV3 service worker：按 `ws:uiShell` 有序配置 `sidePanel.setPanelBehavior` 与 `action.setPopup`；监听 `storage.onChanged` 与 `APPLY_UI_SHELL` 消息；**禁止** import 业务/mqtt/modules |
+| `src/` | 应用入口：手维 `sidepanel.html`（`data-shell=sidepanel`）+ 主编排 `sidepanel.js`；`popup.html` 由脚本从 sidepanel **生成**（`data-shell=popup`，完整 DOM 孪生，勿手改） |
+| `src/background.js` | MV3 service worker：`ws:uiShell` → 有序 `setPanelBehavior` + `setPopup('popup.html'\|'')`；`storage.onChanged` + `APPLY_UI_SHELL`；**禁止** import 业务/mqtt/modules |
 | Storage | `ws:uiShell`（`sidepanel`\|`popup`，默认 sidepanel）、`ws:uiShellPopupWarned`（Popup 首次 confirm 标记） |
+| `scripts/generate-popup-html.mjs` | 从 `sidepanel.html` 生成 `src/popup.html`（Vite 配置加载 / buildStart 自动跑） |
 | `src/modules/` | 多 Topic / 会话相关的模块化领域逻辑（状态、路由、持久化、Tab 渲染） |
-| `src/css/` | 样式表集中管理（主题变量与 UI 样式）；**不要**再把样式写回单文件根路径 `src/styles.css` |
-| `public/` | 扩展静态资源与 `manifest.json`（图标等）；`background.service_worker` → `background.js` |
+| `src/css/` | 样式表集中管理（主题变量与 UI 样式、`[data-shell=popup]`）；**不要**再把样式写回单文件根路径 `src/styles.css` |
+| `public/` | 扩展静态资源与 `manifest.json`（图标等）；`background.service_worker` → `background.js`；无静态 `default_popup` |
 | `docs/` | 给人看的架构 / 产品 / 开发文档（含 UI shell 设计 `docs/06-ui-shell-popup-vs-sidepanel.md`） |
-| `tests/` | 测试（含 Node 与简易 HTML 用例；`ui-shell` normalize/产物断言） |
+| `tests/` | 测试（含 Node 与简易 HTML 用例；`ui-shell` normalize + `dist/{background,sidepanel,popup}` 断言） |
 | `prototype/` | 早期 UI 原型，**仅作参考**，不是运行时依赖 |
 | `assets/` | 截图等媒体资源 |
-| `dist/` | Vite 构建产物（加载扩展时选此目录）；固定 `dist/background.js`，app 资源可 content-hash |
-| `vite.config.js` / `package.json` / `tailwind.config.js` / `postcss.config.js` 等 | 构建与工具链配置（多入口：sidepanel HTML + background SW；polyfill 不污染 SW） |
+| `dist/` | Vite 构建产物（加载扩展时选此目录）；固定 `dist/background.js`，含 `sidepanel.html` + `popup.html`，app 资源可 content-hash |
+| `vite.config.js` / `package.json` / `tailwind.config.js` / `postcss.config.js` 等 | 构建与工具链配置（多入口：sidepanel + popup HTML + background SW；polyfill 不污染 SW） |
 
 更细的区域说明见：
 

@@ -78,12 +78,7 @@ if (existsSync(distDir)) {
   console.log('\n📦 dist/ post-build checks\n');
   assert(existsSync(resolve(distDir, 'background.js')), 'dist/background.js exists');
   assert(existsSync(resolve(distDir, 'sidepanel.html')), 'dist/sidepanel.html exists');
-  // popup.html is required from PR-3 onward; if present, pass; if not yet, skip
-  if (existsSync(resolve(distDir, 'popup.html'))) {
-    assert(true, 'dist/popup.html exists');
-  } else {
-    console.log('ℹ️  SKIP: dist/popup.html (expected until popup twin commit)');
-  }
+  assert(existsSync(resolve(distDir, 'popup.html')), 'dist/popup.html exists');
 } else {
   console.log('\nℹ️  SKIP dist checks (dist/ not built yet)');
 }
