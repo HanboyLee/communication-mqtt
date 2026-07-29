@@ -329,6 +329,26 @@ input:focus, select:focus, textarea:focus {
 
 .divider { height: 1px; background: var(--glass-border); margin: 0.5rem 0; }
 
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.form-section .form-hint {
+    display: block;
+    margin-top: 0.35rem;
+    line-height: 1.4;
+}
+
 .checkbox-group label {
     flex-direction: row;
     align-items: center;

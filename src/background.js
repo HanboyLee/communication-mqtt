@@ -6,6 +6,9 @@
 const UI_SHELL_KEY = 'ws:uiShell';
 const UI_SHELL_DEFAULT = 'sidepanel';
 
+// PR-2 temporary: use sidepanel.html until popup twin (PR-3) exists.
+const POPUP_PAGE = 'sidepanel.html';
+
 function normalizeUiShell(value) {
   return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
 }
@@ -20,7 +23,7 @@ async function applyUiShell(mode) {
   try {
     if (shell === 'popup') {
       await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
-      await chrome.action.setPopup({ popup: 'popup.html' });
+      await chrome.action.setPopup({ popup: POPUP_PAGE });
     } else {
       await chrome.action.setPopup({ popup: '' });
       await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -47,6 +50,24 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   readShell().then(applyUiShell);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[UI_SHELL_KEY]) return;
+  applyUiShell(changes[UI_SHELL_KEY].newValue);
+});
+
+// UI writes storage then wakes SW (complements storage.onChanged if SW was asleep)
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type !== 'APPLY_UI_SHELL') return;
+  readShell()
+    .then(applyUiShell)
+    .then(() => sendResponse({ ok: true }))
+    .catch((e) => {
+      console.error('[uiShell] APPLY_UI_SHELL', e);
+      sendResponse({ ok: false, error: String(e) });
+    });
+  return true; // async sendResponse
 });
 
 // Cold-start SW evaluation also applies once

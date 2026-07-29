@@ -64,6 +64,22 @@
                 <button id="closeSettingsBtn" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="settings-content">
+                <!-- 界面（Chrome 全局打开方式，非连接配置） -->
+                <div class="form-section" data-section="ui-shell">
+                    <h4 class="section-label">界面</h4>
+                    <div class="form-group">
+                        <label>
+                            <span>打开方式</span>
+                            <select id="cfgUiShell">
+                                <option value="sidepanel">侧边栏 (Side Panel)</option>
+                                <option value="popup">工具栏弹窗 (Popup)</option>
+                            </select>
+                        </label>
+                        <p class="form-hint" id="uiShellHint"></p>
+                    </div>
+                </div>
+                <div class="divider"></div>
+
                 <div class="form-group grid-2">
                     <label>
                         <span>模式</span>

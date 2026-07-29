@@ -7,7 +7,8 @@
 | 路径 | 职责 |
 |------|------|
 | `src/` | 应用源码入口：Side Panel UI（`sidepanel.html`）与主编排逻辑（`sidepanel.js`）；可选生成孪生 `popup.html`（`data-shell=popup`，构建产物） |
-| `src/background.js` | MV3 service worker：按 `ws:uiShell` 有序配置 `sidePanel.setPanelBehavior` 与 `action.setPopup`；**禁止** import 业务/mqtt/modules |
+| `src/background.js` | MV3 service worker：按 `ws:uiShell` 有序配置 `sidePanel.setPanelBehavior` 与 `action.setPopup`；监听 `storage.onChanged` 与 `APPLY_UI_SHELL` 消息；**禁止** import 业务/mqtt/modules |
+| Storage | `ws:uiShell`（`sidepanel`\|`popup`，默认 sidepanel）、`ws:uiShellPopupWarned`（Popup 首次 confirm 标记） |
 | `src/modules/` | 多 Topic / 会话相关的模块化领域逻辑（状态、路由、持久化、Tab 渲染） |
 | `src/css/` | 样式表集中管理（主题变量与 UI 样式）；**不要**再把样式写回单文件根路径 `src/styles.css` |
 | `public/` | 扩展静态资源与 `manifest.json`（图标等）；`background.service_worker` → `background.js` |

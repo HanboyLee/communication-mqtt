@@ -11,13 +11,24 @@ const Status = {
   Disconnected: 'disconnected'
 };
 
+// UI shell constants (duplicated in background.js — keep strings identical)
+const UI_SHELL_KEY = 'ws:uiShell';
+const UI_SHELL_POPUP_WARNED_KEY = 'ws:uiShellPopupWarned';
+const UI_SHELL_DEFAULT = 'sidepanel';
+
+function normalizeUiShell(value) {
+  return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
+}
+
 const storageKeys = {
   url: 'ws:url',
   idleSeconds: 'ws:idleSeconds',
   history: 'ws:history',
   historySize: 'ws:historySize',
   theme: 'ws:theme',
-  connConfig: 'ws:connConfig'
+  connConfig: 'ws:connConfig',
+  uiShell: UI_SHELL_KEY,
+  uiShellPopupWarned: UI_SHELL_POPUP_WARNED_KEY
 };
 
 const dom = {
@@ -75,7 +86,9 @@ const cfgDom = {
   pubTopic: document.getElementById('cfgPubTopic'),
   autoReconnect: document.getElementById('cfgAutoReconnect'),
   preview: document.getElementById('cfgPreview'),
-  applyBtn: document.getElementById('applyConfigBtn')
+  applyBtn: document.getElementById('applyConfigBtn'),
+  uiShell: document.getElementById('cfgUiShell'),
+  uiShellHint: document.getElementById('uiShellHint')
 };
 
 let ws = null;
@@ -176,6 +189,68 @@ const persistConfig = async () => {
   });
 };
 
+const UI_SHELL_HINTS = {
+  sidepanel:
+    '点击扩展图标时打开侧边栏。适合长时间调试：切换标签时通常仍可保持连接与日志。此项立即保存，不需要点「应用并填充 URL」。',
+  popup:
+    '弹窗关闭后，当前页面内的连接与实时日志会丢失。长时间调试请使用侧边栏。此项立即保存，不需要点「应用并填充 URL」。'
+};
+
+const updateUiShellHint = (shell) => {
+  if (!cfgDom.uiShellHint) return;
+  const mode = normalizeUiShell(shell);
+  cfgDom.uiShellHint.textContent = UI_SHELL_HINTS[mode] || UI_SHELL_HINTS.sidepanel;
+};
+
+const notifyApplyUiShell = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: 'APPLY_UI_SHELL' });
+  } catch (_) {
+    // SW may be briefly unavailable; storage.onChanged still applies when it wakes
+  }
+};
+
+const applyUiShellPreference = async (next) => {
+  const shell = normalizeUiShell(next);
+  updateUiShellHint(shell);
+  await chrome.storage.local.set({ [UI_SHELL_KEY]: shell });
+  await notifyApplyUiShell();
+  const label = shell === 'popup' ? '工具栏弹窗 (Popup)' : '侧边栏 (Side Panel)';
+  pushLog('sys', `界面打开方式已设为${label}，将在下次点击扩展图标时生效。`);
+};
+
+const onUiShellChange = async () => {
+  if (!cfgDom.uiShell) return;
+  const previous = normalizeUiShell(cfgDom.uiShell.dataset.current || UI_SHELL_DEFAULT);
+  const next = normalizeUiShell(cfgDom.uiShell.value);
+  updateUiShellHint(next);
+
+  if (next === previous) return;
+
+  if (next === 'popup') {
+    const bag = await chrome.storage.local.get(UI_SHELL_POPUP_WARNED_KEY);
+    const alreadyWarned = bag[UI_SHELL_POPUP_WARNED_KEY] === true;
+    const needConfirm = status === Status.Connected || !alreadyWarned;
+    if (needConfirm) {
+      const ok = window.confirm(
+        '切换到工具栏弹窗后：关闭弹窗会销毁当前页面，WebSocket/MQTT 连接与内存中的实时日志都会丢失。\n\n' +
+          '长时间调试请继续使用侧边栏。确定改为弹窗吗？'
+      );
+      if (!ok) {
+        cfgDom.uiShell.value = previous;
+        updateUiShellHint(previous);
+        return;
+      }
+      if (!alreadyWarned) {
+        await chrome.storage.local.set({ [UI_SHELL_POPUP_WARNED_KEY]: true });
+      }
+    }
+  }
+
+  cfgDom.uiShell.dataset.current = next;
+  await applyUiShellPreference(next);
+};
+
 const loadState = async () => {
   const stored = await chrome.storage.local.get(Object.values(storageKeys));
   dom.urlInput.value = stored[storageKeys.url] || '';
@@ -183,6 +258,17 @@ const loadState = async () => {
   historySize = Number.isFinite(stored[storageKeys.historySize]) ? stored[storageKeys.historySize] : 5;
   history = Array.isArray(stored[storageKeys.history]) ? stored[storageKeys.history] : [];
   theme = stored[storageKeys.theme] || 'light';
+
+  const shell = normalizeUiShell(stored[storageKeys.uiShell]);
+  if (cfgDom.uiShell) {
+    cfgDom.uiShell.value = shell;
+    cfgDom.uiShell.dataset.current = shell;
+  }
+  updateUiShellHint(shell);
+  // Normalize missing/invalid key in storage
+  if (stored[storageKeys.uiShell] !== shell) {
+    await chrome.storage.local.set({ [UI_SHELL_KEY]: shell });
+  }
 
   dom.idleInput.value = idleSeconds;
   dom.historySizeInput.value = historySize;
@@ -541,6 +627,11 @@ const initEvents = () => {
     mode = cfgDom.mode.value;
     refreshPreview();
     persistConfig();
+  });
+
+  // UI shell preference — immediate apply; NOT via applyConfigBtn
+  cfgDom.uiShell?.addEventListener('change', () => {
+    onUiShellChange();
   });
 };
 
