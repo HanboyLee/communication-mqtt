@@ -11,13 +11,36 @@ const Status = {
   Disconnected: 'disconnected'
 };
 
+// UI shell constants (duplicated in background.js — keep strings identical)
+const UI_SHELL_KEY = 'ws:uiShell';
+const UI_SHELL_POPUP_WARNED_KEY = 'ws:uiShellPopupWarned';
+const UI_SHELL_DEFAULT = 'sidepanel';
+
+/** Normalize shell; migrates legacy storage/HTML value "popup" → "window". */
+function normalizeUiShell(value) {
+  if (value === 'window' || value === 'popup') return 'window';
+  return UI_SHELL_DEFAULT;
+}
+
+// Document shell from HTML only (do not infer from storage — panel may still be open after preference change)
+(() => {
+  const raw =
+    document.documentElement.getAttribute('data-shell') ||
+    document.body?.getAttribute('data-shell') ||
+    'sidepanel';
+  const shell = normalizeUiShell(raw);
+  document.documentElement.setAttribute('data-shell', shell);
+})();
+
 const storageKeys = {
   url: 'ws:url',
   idleSeconds: 'ws:idleSeconds',
   history: 'ws:history',
   historySize: 'ws:historySize',
   theme: 'ws:theme',
-  connConfig: 'ws:connConfig'
+  connConfig: 'ws:connConfig',
+  uiShell: UI_SHELL_KEY,
+  uiShellPopupWarned: UI_SHELL_POPUP_WARNED_KEY
 };
 
 const dom = {
@@ -26,7 +49,6 @@ const dom = {
   historySizeInput: document.getElementById('historySizeInput'),
   connectBtn: document.getElementById('connectBtn'),
   clearBtn: document.getElementById('clearBtn'),
-  scrollLockBtn: document.getElementById('scrollLockBtn'),
   themeBtn: document.getElementById('themeBtn'),
   logContainer: document.getElementById('logContainer'),
   messageInput: document.getElementById('messageInput'),
@@ -75,7 +97,9 @@ const cfgDom = {
   pubTopic: document.getElementById('cfgPubTopic'),
   autoReconnect: document.getElementById('cfgAutoReconnect'),
   preview: document.getElementById('cfgPreview'),
-  applyBtn: document.getElementById('applyConfigBtn')
+  applyBtn: document.getElementById('applyConfigBtn'),
+  uiShell: document.getElementById('cfgUiShell'),
+  uiShellHint: document.getElementById('uiShellHint')
 };
 
 let ws = null;
@@ -83,7 +107,8 @@ let mqttClient = null;
 let mode = 'mqtt';
 let status = Status.Disconnected;
 let logs = [];
-let scrollLocked = false;
+/** Fallback when no active topic session (session.autoScroll is source of truth with a session). */
+let globalAutoScroll = true;
 let history = [];
 let historySize = 5;
 let idleSeconds = 0;
@@ -176,6 +201,68 @@ const persistConfig = async () => {
   });
 };
 
+const UI_SHELL_HINTS = {
+  sidepanel:
+    '点击扩展图标时打开侧边栏。适合长时间调试：切换标签时通常仍可保持连接与日志。此项立即保存，不需要点「应用并填充 URL」。',
+  window:
+    '点击扩展图标时打开可拖动的独立窗口（非工具栏弹窗）。关闭该窗口后，连接与实时日志会丢失。长时间调试请使用侧边栏。此项立即保存，不需要点「应用并填充 URL」。'
+};
+
+const updateUiShellHint = (shell) => {
+  if (!cfgDom.uiShellHint) return;
+  const mode = normalizeUiShell(shell);
+  cfgDom.uiShellHint.textContent = UI_SHELL_HINTS[mode] || UI_SHELL_HINTS.sidepanel;
+};
+
+const notifyApplyUiShell = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: 'APPLY_UI_SHELL' });
+  } catch (_) {
+    // SW may be briefly unavailable; storage.onChanged still applies when it wakes
+  }
+};
+
+const applyUiShellPreference = async (next) => {
+  const shell = normalizeUiShell(next);
+  updateUiShellHint(shell);
+  await chrome.storage.local.set({ [UI_SHELL_KEY]: shell });
+  await notifyApplyUiShell();
+  const label = shell === 'window' ? '独立窗口 (可拖动)' : '侧边栏 (Side Panel)';
+  pushLog('sys', `界面打开方式已设为${label}，将在下次点击扩展图标时生效。`);
+};
+
+const onUiShellChange = async () => {
+  if (!cfgDom.uiShell) return;
+  const previous = normalizeUiShell(cfgDom.uiShell.dataset.current || UI_SHELL_DEFAULT);
+  const next = normalizeUiShell(cfgDom.uiShell.value);
+  updateUiShellHint(next);
+
+  if (next === previous) return;
+
+  if (next === 'window') {
+    const bag = await chrome.storage.local.get(UI_SHELL_POPUP_WARNED_KEY);
+    const alreadyWarned = bag[UI_SHELL_POPUP_WARNED_KEY] === true;
+    const needConfirm = status === Status.Connected || !alreadyWarned;
+    if (needConfirm) {
+      const ok = window.confirm(
+        '切换到独立窗口后：关闭该窗口会销毁当前页面，WebSocket/MQTT 连接与内存中的实时日志都会丢失。\n\n' +
+          '长时间调试请继续使用侧边栏。确定改为独立窗口吗？'
+      );
+      if (!ok) {
+        cfgDom.uiShell.value = previous;
+        updateUiShellHint(previous);
+        return;
+      }
+      if (!alreadyWarned) {
+        await chrome.storage.local.set({ [UI_SHELL_POPUP_WARNED_KEY]: true });
+      }
+    }
+  }
+
+  cfgDom.uiShell.dataset.current = next;
+  await applyUiShellPreference(next);
+};
+
 const loadState = async () => {
   const stored = await chrome.storage.local.get(Object.values(storageKeys));
   dom.urlInput.value = stored[storageKeys.url] || '';
@@ -183,6 +270,17 @@ const loadState = async () => {
   historySize = Number.isFinite(stored[storageKeys.historySize]) ? stored[storageKeys.historySize] : 5;
   history = Array.isArray(stored[storageKeys.history]) ? stored[storageKeys.history] : [];
   theme = stored[storageKeys.theme] || 'light';
+
+  const shell = normalizeUiShell(stored[storageKeys.uiShell]);
+  if (cfgDom.uiShell) {
+    cfgDom.uiShell.value = shell;
+    cfgDom.uiShell.dataset.current = shell;
+  }
+  updateUiShellHint(shell);
+  // Normalize missing/invalid key in storage
+  if (stored[storageKeys.uiShell] !== shell) {
+    await chrome.storage.local.set({ [UI_SHELL_KEY]: shell });
+  }
 
   dom.idleInput.value = idleSeconds;
   dom.historySizeInput.value = historySize;
@@ -311,9 +409,36 @@ const renderLogs = () => {
     dom.logContainer.appendChild(frag);
   }
 
-  if (!scrollLocked) {
-    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+  scrollLogsToBottomIfNeeded();
+};
+
+/**
+ * Auto-scroll source of truth:
+ * - active session → session.autoScroll
+ * - no session → globalAutoScroll
+ */
+const isAutoScrollEnabled = () => {
+  const s = topicManager.getActiveSession();
+  return s ? !!s.autoScroll : globalAutoScroll;
+};
+
+/** Keep the session toolbar auto-scroll button aligned with active preference. */
+const syncAutoScrollUi = () => {
+  const s = topicManager.getActiveSession();
+  const autoOn = s ? !!s.autoScroll : globalAutoScroll;
+  if (dom.sessionScrollBtn) {
+    dom.sessionScrollBtn.classList.toggle('active', autoOn);
+    dom.sessionScrollBtn.title = autoOn ? '自动滚动 (开)' : '自动滚动 (关)';
   }
+};
+
+/** Scroll log area to bottom after paint when auto-scroll is on. */
+const scrollLogsToBottomIfNeeded = () => {
+  if (!isAutoScrollEnabled() || !dom.logContainer) return;
+  requestAnimationFrame(() => {
+    if (!dom.logContainer || !isAutoScrollEnabled()) return;
+    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+  });
 };
 
 const renderHistoryChips = () => {
@@ -453,11 +578,6 @@ const sendMessage = () => {
   dom.messageInput.value = ''; // Clear input
 };
 
-const toggleScrollLock = () => {
-  scrollLocked = !scrollLocked;
-  dom.scrollLockBtn.innerHTML = scrollLocked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>';
-};
-
 const applyTheme = (nextTheme) => {
   document.documentElement.setAttribute('data-theme', nextTheme);
   theme = nextTheme;
@@ -479,7 +599,6 @@ const initEvents = () => {
     logs = [];
     renderLogs();
   });
-  dom.scrollLockBtn.addEventListener('click', toggleScrollLock);
   dom.themeBtn.addEventListener('click', toggleTheme);
   dom.sendBtn.addEventListener('click', sendMessage);
 
@@ -542,6 +661,35 @@ const initEvents = () => {
     refreshPreview();
     persistConfig();
   });
+
+  // UI shell preference — immediate apply; NOT via applyConfigBtn
+  cfgDom.uiShell?.addEventListener('change', () => {
+    onUiShellChange();
+  });
+};
+
+/** Both shells: persist config and tear down sockets/timers on document unload. */
+const onDocumentTeardown = () => {
+  try {
+    persistState();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    persistConfig();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    stopIdleWatcher();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    disconnect();
+  } catch (_) {
+    /* ignore */
+  }
 };
 
 let currentSubscribedTopic = '';
@@ -644,7 +792,10 @@ const init = async () => {
   await loadState();
   await loadConfig();
   initEvents();
-  
+
+  // pagehide on both shells — MQTT timer hygiene + persist before destroy
+  window.addEventListener('pagehide', onDocumentTeardown);
+
   // Initialize multi-topic system
   await initMultiTopic();
 };
@@ -662,6 +813,7 @@ const initMultiTopic = async () => {
   // Set up TabRenderer callbacks
   tabRenderer.onTabClick = (sessionId) => {
     topicManager.switchToSession(sessionId);
+    syncAutoScrollUi();
     renderActiveSessionLogs();
   };
   
@@ -690,6 +842,9 @@ const initMultiTopic = async () => {
   
   // Initialize session toolbar
   initSessionToolbar();
+  // Align auto-scroll button with restored session.autoScroll
+  syncAutoScrollUi();
+  renderActiveSessionLogs();
   
   // === Topic Management Panel ===
   
@@ -922,7 +1077,7 @@ const updateSessionToolbar = (session) => {
       pauseIcon.classList.remove('fa-play');
     }
     dom.sessionJsonBtn?.classList.add('active');
-    dom.sessionScrollBtn?.classList.add('active');
+    syncAutoScrollUi();
     return;
   }
   
@@ -940,7 +1095,7 @@ const updateSessionToolbar = (session) => {
     pauseIcon.classList.toggle('fa-play', session.isPaused);
   }
   dom.sessionJsonBtn?.classList.toggle('active', session.jsonFormat);
-  dom.sessionScrollBtn?.classList.toggle('active', session.autoScroll);
+  syncAutoScrollUi();
 };
 
 /**
@@ -984,13 +1139,18 @@ const initSessionToolbar = () => {
     }
   });
   
-  // Auto Scroll
+  // Auto Scroll (single control — session.autoScroll, or global when no session)
   dom.sessionScrollBtn?.addEventListener('click', () => {
     const session = topicManager.getActiveSession();
     if (session) {
       session.autoScroll = !session.autoScroll;
-      dom.sessionScrollBtn.classList.toggle('active', session.autoScroll);
-      scrollLocked = !session.autoScroll;
+      topicStorage.saveAll().catch(() => {});
+    } else {
+      globalAutoScroll = !globalAutoScroll;
+    }
+    syncAutoScrollUi();
+    if (isAutoScrollEnabled()) {
+      scrollLogsToBottomIfNeeded();
     }
   });
 };
@@ -1056,10 +1216,8 @@ const renderActiveSessionLogs = () => {
   } else {
     dom.logContainer.appendChild(frag);
   }
-  
-  if (!scrollLocked) {
-    dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
-  }
+
+  scrollLogsToBottomIfNeeded();
 };
 
 init();

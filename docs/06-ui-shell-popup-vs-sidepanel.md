@@ -1,34 +1,52 @@
-# 设计文档：用户可选 UI Shell（Popup vs Side Panel）
+# 设计文档：用户可选 UI Shell（独立窗口 vs Side Panel）
 
-| 字段 | 内容 |
-|------|------|
-| **Title** | User-selectable UI shell: Popup vs Side Panel |
-| **Author** | TBD |
-| **Date** | 2026-07-29 |
-| **Status** | Draft（修订 r2 — 回应 design review） |
-| **Repo** | `D:\googleExtension\websocketExtension`（及 AO worktree `websocketext-orchestrator`） |
-| **Related** | `public/manifest.json`, `src/sidepanel.html`, `src/sidepanel.js`, `vite.config.js`, `src/css/styles.css` |
+| 字段        | 内容                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Title**   | User-selectable UI shell: Floating Window vs Side Panel                                                                                                  |
+| **Author**  | TBD                                                                                                                                                      |
+| **Date**    | 2026-07-29                                                                                                                                               |
+| **Status**  | Implemented（修订 r3 — **产品变更：取消 action popup，改用 `chrome.windows.create` 可拖动独立窗口**）                                                    |
+| **Repo**    | `D:\googleExtension\websocketExtension`（及 AO worktree）                                                                                                |
+| **Related** | `public/manifest.json`, `src/background.js`, `src/sidepanel.html`, `src/window.html`（生成）, `src/sidepanel.js`, `vite.config.js`, `src/css/styles.css` |
+
+---
+
+## Product revision (r3 — authoritative)
+
+**用户明确不要** `chrome.action` 工具栏锚定 Popup。仅两种模式：
+
+| `ws:uiShell`        | 工具栏点击行为                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sidepanel`（默认） | `setPanelBehavior({ openPanelOnActionClick: true })`；**不** `setPopup`；不依赖 `action.onClicked`   |
+| `window`            | `openPanelOnActionClick: false` + `setPopup('')`；`action.onClicked` → `openOrFocusFloatingWindow()` |
+
+浮动窗口规则：
+
+- `chrome.windows.create({ url: window.html, type: 'popup', width: 420, height: 浏览器 normal 窗口高度 })`（`type: 'popup'` 仅表示 chromeless 工具窗，**仍可拖动/调整大小**，不是 action popup）。
+- SW 内存跟踪 `floatingWindowId`；已存在则 `windows.update({ focused: true })`，**不**开第二窗；`windows.onRemoved` 清 id。
+- 旧值 `popup` 在 `normalizeUiShell` 中迁移为 `window`。
+- 权限：`storage` + `sidePanel` + **`windows`**。
+- 生成孪生页：`src/window.html`（`data-shell=window`），UI 文案「独立窗口 (可拖动)」。
+
+下文 r2 中凡写 “Action Popup / setPopup(popup.html) 作为业务 UI” 的部分 **以 r3 为准作废**；其余（单 bundle、设置顶栏、pagehide teardown、`pushLog` 反馈）仍适用，只是 shell 名改为 window。
 
 ---
 
 ## Overview
 
-当前扩展通过 Chrome **Side Panel** 承载调试 UI：`manifest.json` 声明 `side_panel.default_path = sidepanel.html`，`action` **没有** `default_popup`，也 **没有** service worker。仓库内 **没有任何** `sidePanel.setPanelBehavior` 调用。因此：
-
-- 用户今天打开 UI 的主路径更可能是 Chrome 全局 Side Panel UI / 扩展管理入口，**而不是**「点击工具栏图标即打开侧栏」；
-- 引入 SW 并执行 `openPanelOnActionClick: true` 会 **有意改善/钉死**「点击图标 → Side Panel」这一默认路径（见 PR-1），不是“零可感知差异”。
+扩展通过 Chrome **Side Panel** 与可选 **独立浮动窗口** 承载调试 UI。
 
 用户希望在两种打开方式间自由选择：
 
 1. **Side Panel**（默认）：侧边面板，适合长时间调试、跨标签导航仍保持连接与日志。
-2. **Action Popup**（工具栏弹窗）：打开快、适合快速查看，但关闭后文档销毁。
+2. **独立窗口**（可拖动）：`chrome.windows.create` 打开完整 UI 孪生页，可移到任意显示器位置；关闭后文档与连接销毁。
 
 本设计在 **不复制** `sidepanel.js` 业务逻辑的前提下：
 
-- 用 `chrome.storage.local` 键 `ws:uiShell` 持久化偏好（默认 `sidepanel`）；
-- 用 **MV3 service worker** 在 install / startup / storage 变更 / 显式消息时，**成对、有序**配置 `sidePanel.setPanelBehavior` 与 `action.setPopup`；
-- 用 **完整 DOM 的 HTML 孪生页** `popup.html`（由构建从 `sidepanel.html` 生成，仅 `data-shell` 等差异）+ **同一** `sidepanel.js` bundle；
-- Popup 视口下用 `[data-shell="popup"]` CSS 保证可滚动与页脚可见。
+- 用 `chrome.storage.local` 键 `ws:uiShell` 持久化偏好（默认 `sidepanel`；合法值 `sidepanel` \| `window`）；
+- 用 **MV3 service worker** 配置 `sidePanel.setPanelBehavior`，并在 window 模式用 `action.onClicked` + `chrome.windows` 打开/聚焦；
+- 用 **完整 DOM 的 HTML 孪生页** `window.html`（由构建从 `sidepanel.html` 生成，`data-shell=window`）+ **同一** `sidepanel.js` bundle；
+- 浮动窗视口下用 `[data-shell="window"]` CSS 保证日志区滚动与页脚可见。
 
 ---
 
@@ -36,17 +54,17 @@
 
 ### 现状（代码核实 — `D:\googleExtension\websocketExtension`）
 
-| 项 | 现状 |
-|----|------|
-| Manifest | MV3；权限 `storage`, `sidePanel`；无 `background`；`action` 无 `default_popup`；name/description 偏 Side Panel 文案 |
-| UI 入口 | 单一：`src/sidepanel.html`（~240+ 行声明式 DOM）+ `src/sidepanel.js`（`getElementById` 绑定，不构建壳 DOM）+ `src/css/styles.css` + `src/modules/*` |
-| 构建 | `vite.config.js`：`root: 'src'`，仅 `input.sidepanel`；全局 `vite-plugin-node-polyfills`；`vite-plugin-static-copy` 已 import **未使用** |
-| 现网产物形态 | `mqtt_dist_extension/` 使用 **哈希** 资源名，如 `assets/sidepanel-CBKmAOxT.js`、`assets/sidepanel-Cxb8J2mQ.css` |
-| 工具栏点击 | **代码未**调用 `setPanelBehavior`；不能声称“当前点击图标已稳定打开 Side Panel” |
-| 状态 | 连接/日志在 **页面内存**；配置/历史/主题元数据在 `chrome.storage.local`（`ws:url`, `ws:theme`, `ws:connConfig`, `ws:topicConfigs` 等） |
-| 设置 UI | `#settingsPanel` / `.settings-content`：连接向配置，末端为「应用并填充 URL」`#applyConfigBtn` |
-| Toast | HTML 有 `#toastContainer`，**`sidepanel.js` 无 toast API**；用户反馈仅靠 `pushLog('sys', …)` |
-| 样式 | `body { height: 100vh; overflow: hidden }`；`.app-container { height: 100%; max-width: 1200px }`；`.logs-area` 为纵向滚动区；已有 `@media (max-width: 450px)` |
+| 项           | 现状                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manifest     | MV3；权限 `storage`, `sidePanel`；无 `background`；`action` 无 `default_popup`；name/description 偏 Side Panel 文案                                           |
+| UI 入口      | 单一：`src/sidepanel.html`（~240+ 行声明式 DOM）+ `src/sidepanel.js`（`getElementById` 绑定，不构建壳 DOM）+ `src/css/styles.css` + `src/modules/*`           |
+| 构建         | `vite.config.js`：`root: 'src'`，仅 `input.sidepanel`；全局 `vite-plugin-node-polyfills`；`vite-plugin-static-copy` 已 import **未使用**                      |
+| 现网产物形态 | `mqtt_dist_extension/` 使用 **哈希** 资源名，如 `assets/sidepanel-CBKmAOxT.js`、`assets/sidepanel-Cxb8J2mQ.css`                                               |
+| 工具栏点击   | **代码未**调用 `setPanelBehavior`；不能声称“当前点击图标已稳定打开 Side Panel”                                                                                |
+| 状态         | 连接/日志在 **页面内存**；配置/历史/主题元数据在 `chrome.storage.local`（`ws:url`, `ws:theme`, `ws:connConfig`, `ws:topicConfigs` 等）                        |
+| 设置 UI      | `#settingsPanel` / `.settings-content`：连接向配置，末端为「应用并填充 URL」`#applyConfigBtn`                                                                 |
+| Toast        | HTML 有 `#toastContainer`，**`sidepanel.js` 无 toast API**；用户反馈仅靠 `pushLog('sys', …)`                                                                  |
+| 样式         | `body { height: 100vh; overflow: hidden }`；`.app-container { height: 100%; max-width: 1200px }`；`.logs-area` 为纵向滚动区；已有 `@media (max-width: 450px)` |
 
 ### 痛点
 
@@ -140,10 +158,10 @@ flowchart TB
 
 ### 控制面：Action 点击二选一
 
-| `ws:uiShell` | `sidePanel.setPanelBehavior` | `action.setPopup` |
-|--------------|------------------------------|-------------------|
-| `sidepanel`（默认） | `{ openPanelOnActionClick: true }` | `{ popup: '' }` |
-| `popup` | `{ openPanelOnActionClick: false }` | `{ popup: 'popup.html' }` |
+| `ws:uiShell`        | `sidePanel.setPanelBehavior`        | `action.setPopup`         |
+| ------------------- | ----------------------------------- | ------------------------- |
+| `sidepanel`（默认） | `{ openPanelOnActionClick: true }`  | `{ popup: '' }`           |
+| `popup`             | `{ openPanelOnActionClick: false }` | `{ popup: 'popup.html' }` |
 
 #### 应用顺序（KD-14 / Issue 15）
 
@@ -151,19 +169,21 @@ flowchart TB
 
 ```js
 async function applyUiShell(mode) {
-  const shell = mode === 'popup' ? 'popup' : 'sidepanel';
+  const shell = mode === "popup" ? "popup" : "sidepanel";
   try {
-    if (shell === 'popup') {
+    if (shell === "popup") {
       // 1) 先关掉 action→panel，2) 再挂 popup
-      await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
-      await chrome.action.setPopup({ popup: 'popup.html' });
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: false,
+      });
+      await chrome.action.setPopup({ popup: "popup.html" });
     } else {
       // 1) 先清空 popup，2) 再打开 action→panel
-      await chrome.action.setPopup({ popup: '' });
+      await chrome.action.setPopup({ popup: "" });
       await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
     }
   } catch (err) {
-    console.error('[uiShell] applyUiShell failed', shell, err);
+    console.error("[uiShell] applyUiShell failed", shell, err);
     // 不抛到未处理 rejection；可选：写入 storage 诊断键（非必须）
   }
 }
@@ -176,10 +196,10 @@ async function applyUiShell(mode) {
 
 ### Storage
 
-| 键 | 类型 | 默认 | 说明 |
-|----|------|------|------|
-| `ws:uiShell` | `'sidepanel' \| 'popup'` | `'sidepanel'` | 工具栏打开方式 |
-| `ws:uiShellPopupWarned` | `boolean` | 缺省/false | 是否已对 Popup 寿命做过首次 confirm |
+| 键                      | 类型                     | 默认          | 说明                                |
+| ----------------------- | ------------------------ | ------------- | ----------------------------------- |
+| `ws:uiShell`            | `'sidepanel' \| 'popup'` | `'sidepanel'` | 工具栏打开方式                      |
+| `ws:uiShellPopupWarned` | `boolean`                | 缺省/false    | 是否已对 Popup 寿命做过首次 confirm |
 
 **迁移**：缺键或非法值 → `sidepanel`；SW `onInstalled` 与 UI `loadState` 可 normalize 写回。
 
@@ -189,21 +209,21 @@ async function applyUiShell(mode) {
 
 ```js
 // 同时出现在 src/background.js 与 src/sidepanel.js（保持字符串完全一致）
-const UI_SHELL_KEY = 'ws:uiShell';
-const UI_SHELL_POPUP_WARNED_KEY = 'ws:uiShellPopupWarned';
-const UI_SHELL_DEFAULT = 'sidepanel';
+const UI_SHELL_KEY = "ws:uiShell";
+const UI_SHELL_POPUP_WARNED_KEY = "ws:uiShellPopupWarned";
+const UI_SHELL_DEFAULT = "sidepanel";
 
 function normalizeUiShell(value) {
-  return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
+  return value === "popup" ? "popup" : UI_SHELL_DEFAULT;
 }
 
 /** @returns {{ openPanelOnActionClick: boolean, popup: string }} */
 function uiShellToActionConfig(shell) {
   const mode = normalizeUiShell(shell);
-  if (mode === 'popup') {
-    return { openPanelOnActionClick: false, popup: 'popup.html' };
+  if (mode === "popup") {
+    return { openPanelOnActionClick: false, popup: "popup.html" };
   }
-  return { openPanelOnActionClick: true, popup: '' };
+  return { openPanelOnActionClick: true, popup: "" };
 }
 ```
 
@@ -241,12 +261,13 @@ function uiShellToActionConfig(shell) {
 
 ```js
 const shell =
-  document.documentElement.getAttribute('data-shell') ||
-  document.body?.getAttribute('data-shell') ||
-  'sidepanel';
-document.documentElement.setAttribute('data-shell', normalizeUiShell(
-  shell === 'popup' ? 'popup' : 'sidepanel'
-));
+  document.documentElement.getAttribute("data-shell") ||
+  document.body?.getAttribute("data-shell") ||
+  "sidepanel";
+document.documentElement.setAttribute(
+  "data-shell",
+  normalizeUiShell(shell === "popup" ? "popup" : "sidepanel"),
+);
 // 不要用 storage 推断 shell：用户可能侧栏仍开着但 storage 已是 popup
 ```
 
@@ -256,11 +277,11 @@ document.documentElement.setAttribute('data-shell', normalizeUiShell(
 
 ```js
 // src/background.js — 完整职责伪代码
-const UI_SHELL_KEY = 'ws:uiShell';
-const UI_SHELL_DEFAULT = 'sidepanel';
+const UI_SHELL_KEY = "ws:uiShell";
+const UI_SHELL_DEFAULT = "sidepanel";
 
 function normalizeUiShell(value) {
-  return value === 'popup' ? 'popup' : UI_SHELL_DEFAULT;
+  return value === "popup" ? "popup" : UI_SHELL_DEFAULT;
 }
 
 async function readShell() {
@@ -271,15 +292,17 @@ async function readShell() {
 async function applyUiShell(mode) {
   const shell = normalizeUiShell(mode);
   try {
-    if (shell === 'popup') {
-      await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
-      await chrome.action.setPopup({ popup: 'popup.html' });
+    if (shell === "popup") {
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: false,
+      });
+      await chrome.action.setPopup({ popup: "popup.html" });
     } else {
-      await chrome.action.setPopup({ popup: '' });
+      await chrome.action.setPopup({ popup: "" });
       await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
     }
   } catch (err) {
-    console.error('[uiShell] apply failed', shell, err);
+    console.error("[uiShell] apply failed", shell, err);
   }
 }
 
@@ -289,22 +312,26 @@ async function bootstrap() {
   await applyUiShell(shell);
 }
 
-chrome.runtime.onInstalled.addListener(() => { bootstrap(); });
-chrome.runtime.onStartup.addListener(() => { readShell().then(applyUiShell); });
+chrome.runtime.onInstalled.addListener(() => {
+  bootstrap();
+});
+chrome.runtime.onStartup.addListener(() => {
+  readShell().then(applyUiShell);
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes[UI_SHELL_KEY]) return;
+  if (area !== "local" || !changes[UI_SHELL_KEY]) return;
   applyUiShell(changes[UI_SHELL_KEY].newValue);
 });
 
 // 主路径之一：UI 写入后主动唤醒（与 storage.onChanged 互补，防 SW 休眠竞态）
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== 'APPLY_UI_SHELL') return;
+  if (msg?.type !== "APPLY_UI_SHELL") return;
   readShell()
     .then(applyUiShell)
     .then(() => sendResponse({ ok: true }))
     .catch((e) => {
-      console.error('[uiShell] APPLY_UI_SHELL', e);
+      console.error("[uiShell] APPLY_UI_SHELL", e);
       sendResponse({ ok: false, error: String(e) });
     });
   return true; // 异步 sendResponse
@@ -333,17 +360,17 @@ bootstrap();
 
 #### 硬性约束
 
-| # | 约束 |
-|---|------|
-| V1 | `rollupOptions.input`：`sidepanel`（html）、`popup`（html，生成后存在）、`background`（`src/background.js`） |
-| V2 | `background.js` **禁止** import app / mqtt / modules / css |
-| V3 | background **单文件输出** 到 `dist/background.js`（与 manifest `service_worker` 一致）；**不得**依赖 `chunks/*` 异步图。实现：`output.entryFileNames` 对 background 固定名；且 background 无共享模块，或使用 `manualChunks` 不把任何东西与 background 合并；必要时对 background 使用 `inlineDynamicImports` 仅当该入口单独 build |
-| V4 | App 入口可继续哈希或稳定名：`entryFileNames(chunk) { if (chunk.name === 'background') return 'background.js'; return 'assets/[name]-[hash].js'; }`（app 哈希与今日一致，**仅** SW 固定） |
-| V5 | CSS/asset：`assetFileNames: 'assets/[name]-[hash][extname]'`（与现网一致即可） |
-| V6 | **Scope polyfills**：`vite-plugin-node-polyfills` 不得污染 SW。做法优先顺序：<br>1) 若插件支持按模块过滤则 exclude `background`；<br>2) 否则 **拆成两次 build**（app 有 polyfill，sw 无插件的轻量 config）；<br>3) 或确认 polyfill 插件只处理对 Node 内建的解析，且 background 零引用时 tree-shake 为空——**须在 PR-1 用产物体积/源映射验证**，不可假设 |
-| V7 | HTML：`sidepanel.html` / `popup.html` 输出在 `dist/` 根（Vite 多页默认），供 `side_panel.default_path` 与 `setPopup` |
-| V8 | 删除或真正使用 `vite-plugin-static-copy` import，避免“半残配置”误导后续改动（PR-1 顺手清理 unused import） |
-| V9 | PR-1 自动化：`node` 脚本或 test：`fs.existsSync('dist/background.js')`、`dist/sidepanel.html`；PR-3 增加 `dist/popup.html`。加载 unpacked 后扩展 SW 状态无 import 错误 |
+| #   | 约束                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| V1  | `rollupOptions.input`：`sidepanel`（html）、`popup`（html，生成后存在）、`background`（`src/background.js`）                                                                                                                                                                                                                                           |
+| V2  | `background.js` **禁止** import app / mqtt / modules / css                                                                                                                                                                                                                                                                                             |
+| V3  | background **单文件输出** 到 `dist/background.js`（与 manifest `service_worker` 一致）；**不得**依赖 `chunks/*` 异步图。实现：`output.entryFileNames` 对 background 固定名；且 background 无共享模块，或使用 `manualChunks` 不把任何东西与 background 合并；必要时对 background 使用 `inlineDynamicImports` 仅当该入口单独 build                       |
+| V4  | App 入口可继续哈希或稳定名：`entryFileNames(chunk) { if (chunk.name === 'background') return 'background.js'; return 'assets/[name]-[hash].js'; }`（app 哈希与今日一致，**仅** SW 固定）                                                                                                                                                               |
+| V5  | CSS/asset：`assetFileNames: 'assets/[name]-[hash][extname]'`（与现网一致即可）                                                                                                                                                                                                                                                                         |
+| V6  | **Scope polyfills**：`vite-plugin-node-polyfills` 不得污染 SW。做法优先顺序：<br>1) 若插件支持按模块过滤则 exclude `background`；<br>2) 否则 **拆成两次 build**（app 有 polyfill，sw 无插件的轻量 config）；<br>3) 或确认 polyfill 插件只处理对 Node 内建的解析，且 background 零引用时 tree-shake 为空——**须在 PR-1 用产物体积/源映射验证**，不可假设 |
+| V7  | HTML：`sidepanel.html` / `popup.html` 输出在 `dist/` 根（Vite 多页默认），供 `side_panel.default_path` 与 `setPopup`                                                                                                                                                                                                                                   |
+| V8  | 删除或真正使用 `vite-plugin-static-copy` import，避免“半残配置”误导后续改动（PR-1 顺手清理 unused import）                                                                                                                                                                                                                                             |
+| V9  | PR-1 自动化：`node` 脚本或 test：`fs.existsSync('dist/background.js')`、`dist/sidepanel.html`；PR-3 增加 `dist/popup.html`。加载 unpacked 后扩展 SW 状态无 import 错误                                                                                                                                                                                 |
 
 示例 `output.entryFileNames`：
 
@@ -437,13 +464,13 @@ sequenceDiagram
   UI->>UI: pagehide: persist + disconnect
 ```
 
-| 场景 | 行为 |
-|------|------|
-| 偏好改为 popup，当前 panel 仍开 | SW 立即切换 API；**不**自动关 panel；连接仍在 |
-| 关闭 Popup / Side Panel | 文档卸载 → 连接死、内存日志丢；storage 配置保留 |
-| 仅改偏好不关页 | **不**自动 disconnect |
-| 重开任意 shell | 恢复可持久数据；**不**自动 `connect()`（与现 `init()` 一致） |
-| PR-2 过渡、尚无 `popup.html` | 允许临时 `setPopup({ popup: 'sidepanel.html' })`，**降级**：无 `data-shell=popup` banner/紧凑样式；PR-3 切到 `popup.html` |
+| 场景                            | 行为                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 偏好改为 popup，当前 panel 仍开 | SW 立即切换 API；**不**自动关 panel；连接仍在                                                                             |
+| 关闭 Popup / Side Panel         | 文档卸载 → 连接死、内存日志丢；storage 配置保留                                                                           |
+| 仅改偏好不关页                  | **不**自动 disconnect                                                                                                     |
+| 重开任意 shell                  | 恢复可持久数据；**不**自动 `connect()`（与现 `init()` 一致）                                                              |
+| PR-2 过渡、尚无 `popup.html`    | 允许临时 `setPopup({ popup: 'sidepanel.html' })`，**降级**：无 `data-shell=popup` banner/紧凑样式；PR-3 切到 `popup.html` |
 
 ### 文档卸载清理（Issue 9）
 
@@ -451,13 +478,21 @@ sequenceDiagram
 
 ```js
 function onDocumentTeardown() {
-  try { persistState(); } catch (_) {}
-  try { persistConfig(); } catch (_) {} // 若有未刷新的 cfg DOM
-  try { stopIdleWatcher(); } catch (_) {}
-  try { disconnect(); } catch (_) {} // 内部 stopMqttClient + ws.close；幂等
+  try {
+    persistState();
+  } catch (_) {}
+  try {
+    persistConfig();
+  } catch (_) {} // 若有未刷新的 cfg DOM
+  try {
+    stopIdleWatcher();
+  } catch (_) {}
+  try {
+    disconnect();
+  } catch (_) {} // 内部 stopMqttClient + ws.close；幂等
 }
 
-window.addEventListener('pagehide', onDocumentTeardown);
+window.addEventListener("pagehide", onDocumentTeardown);
 // beforeunload 可选双挂；须保证 disconnect/stopMqttClient 可重复调用无抛错
 ```
 
@@ -502,11 +537,11 @@ html[data-shell="popup"] .topic-manage-panel {
 
 **滚动所有权**：
 
-| 区域 | 滚动 |
-|------|------|
+| 区域                                                | 滚动                   |
+| --------------------------------------------------- | ---------------------- |
 | 主列 header / topic tabs / session toolbar / footer | 固定（不随主列表滚动） |
-| `.logs-area` | 主消息滚动 |
-| 打开的 settings / topic 抽屉 | 抽屉内部滚动 |
+| `.logs-area`                                        | 主消息滚动             |
+| 打开的 settings / topic 抽屉                        | 抽屉内部滚动           |
 
 **手工测试**：短视口下发送框可见；打开设置抽屉可滚到 hint 与按钮。
 
@@ -517,19 +552,19 @@ html[data-shell="popup"] .topic-manage-panel {
 
 ### 与现有模块的边界
 
-| 区域 | 改动 |
-|------|------|
-| `src/modules/*` | 原则上不改 |
-| `src/sidepanel.js` | keys、设置、hint/banner、shell 标记、teardown、message |
-| `src/sidepanel.html` | 顶部「界面」块、`data-shell`、banner 节点 |
-| `src/popup.html` | **生成物**（非手维业务 DOM） |
-| `src/background.js` | 新建 apply / 监听 |
-| `scripts/generate-popup-html.mjs` 或 Vite plugin | 新建 |
-| `src/css/styles.css` | popup 布局 + banner + section-label |
-| `public/manifest.json` | `background` |
-| `vite.config.js` | 多入口、entryFileNames、polyfill 隔离、清理 unused import |
-| `tests/*` | normalize + action config 映射 |
-| `AGENTS.md` / `src/css/AGENTS.md` | 职责更新 |
+| 区域                                             | 改动                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| `src/modules/*`                                  | 原则上不改                                                |
+| `src/sidepanel.js`                               | keys、设置、hint/banner、shell 标记、teardown、message    |
+| `src/sidepanel.html`                             | 顶部「界面」块、`data-shell`、banner 节点                 |
+| `src/popup.html`                                 | **生成物**（非手维业务 DOM）                              |
+| `src/background.js`                              | 新建 apply / 监听                                         |
+| `scripts/generate-popup-html.mjs` 或 Vite plugin | 新建                                                      |
+| `src/css/styles.css`                             | popup 布局 + banner + section-label                       |
+| `public/manifest.json`                           | `background`                                              |
+| `vite.config.js`                                 | 多入口、entryFileNames、polyfill 隔离、清理 unused import |
+| `tests/*`                                        | normalize + action config 映射                            |
+| `AGENTS.md` / `src/css/AGENTS.md`                | 职责更新                                                  |
 
 ### AGENTS.md 更新规则
 
@@ -544,14 +579,14 @@ html[data-shell="popup"] .topic-manage-panel {
 
 ### Chrome Extension API
 
-| API | 用途 |
-|-----|------|
-| `chrome.sidePanel.setPanelBehavior` | action 是否打开侧栏 |
-| `chrome.action.setPopup` | 设置/清空 popup 页 |
-| `chrome.storage.local` | `ws:uiShell`, `ws:uiShellPopupWarned` |
-| `chrome.runtime.onInstalled` / `onStartup` | 应用偏好 |
-| `chrome.storage.onChanged` | 偏好热更新 |
-| `chrome.runtime.onMessage` `APPLY_UI_SHELL` | **v1 必选** UI 唤醒 apply |
+| API                                         | 用途                                  |
+| ------------------------------------------- | ------------------------------------- |
+| `chrome.sidePanel.setPanelBehavior`         | action 是否打开侧栏                   |
+| `chrome.action.setPopup`                    | 设置/清空 popup 页                    |
+| `chrome.storage.local`                      | `ws:uiShell`, `ws:uiShellPopupWarned` |
+| `chrome.runtime.onInstalled` / `onStartup`  | 应用偏好                              |
+| `chrome.storage.onChanged`                  | 偏好热更新                            |
+| `chrome.runtime.onMessage` `APPLY_UI_SHELL` | **v1 必选** UI 唤醒 apply             |
 
 ### 消息协议（v1 全集）
 
@@ -581,11 +616,11 @@ chrome.storage.local["ws:uiShellPopupWarned"] = true | false  // optional flag
 
 ### 日志/连接预期
 
-| 数据 | 文档关闭后 | 换 shell 重开 |
-|------|------------|----------------|
-| 连接 | 断开 | 手动重连 |
-| 内存日志 | 丢失 | 空 |
-| history / URL / topic 配置 / theme | 保留 | 恢复 |
+| 数据                               | 文档关闭后 | 换 shell 重开 |
+| ---------------------------------- | ---------- | ------------- |
+| 连接                               | 断开       | 手动重连      |
+| 内存日志                           | 丢失       | 空            |
+| history / URL / topic 配置 / theme | 保留       | 恢复          |
 
 ---
 
@@ -619,12 +654,12 @@ chrome.storage.local["ws:uiShellPopupWarned"] = true | false  // optional flag
 
 ## Security & Privacy Considerations
 
-| 风险 | 严重度 | 缓解 |
-|------|--------|------|
-| 无新增权限 | 低 | 仍 `storage` + `sidePanel` |
-| 密码在 `ws:connConfig` | 中（已有） | SW 不打印 password |
-| setPopup 错误路径 | 中 | 构建断言 + SW console.error |
-| SW 挂起 | 低 | 行为 API 副作用已持久；startup/message 再 apply |
+| 风险                   | 严重度     | 缓解                                            |
+| ---------------------- | ---------- | ----------------------------------------------- |
+| 无新增权限             | 低         | 仍 `storage` + `sidePanel`                      |
+| 密码在 `ws:connConfig` | 中（已有） | SW 不打印 password                              |
+| setPopup 错误路径      | 中         | 构建断言 + SW console.error                     |
+| SW 挂起                | 低         | 行为 API 副作用已持久；startup/message 再 apply |
 
 ---
 
@@ -650,56 +685,56 @@ chrome.storage.local["ws:uiShellPopupWarned"] = true | false  // optional flag
 
 ## Open Questions
 
-| ID | 问题 | 状态 |
-|----|------|------|
-| OQ-1 | Popup min 尺寸 | **已决议 KD-16：360×480** |
-| OQ-2 | Banner 一键改回侧边栏 | **已决议 KD-16：v1 要做** |
-| OQ-3 | `action.default_title` 随模式变 | 仍开放（nice-to-have） |
-| OQ-4 | 日志会话持久化补齐 Popup 短命 | 仍开放（独立特性） |
-| OQ-5 | 文案「侧边栏」vs「侧边面板」 | **已决议：设置内用「侧边栏 (Side Panel)」** |
-| OQ-6 | 是否双 build 隔离 polyfill | 实现期验证后定；优先单 config + 证明 SW 无 polyfill 污染 |
+| ID   | 问题                            | 状态                                                     |
+| ---- | ------------------------------- | -------------------------------------------------------- |
+| OQ-1 | Popup min 尺寸                  | **已决议 KD-16：360×480**                                |
+| OQ-2 | Banner 一键改回侧边栏           | **已决议 KD-16：v1 要做**                                |
+| OQ-3 | `action.default_title` 随模式变 | 仍开放（nice-to-have）                                   |
+| OQ-4 | 日志会话持久化补齐 Popup 短命   | 仍开放（独立特性）                                       |
+| OQ-5 | 文案「侧边栏」vs「侧边面板」    | **已决议：设置内用「侧边栏 (Side Panel)」**              |
+| OQ-6 | 是否双 build 隔离 polyfill      | 实现期验证后定；优先单 config + 证明 SW 无 polyfill 污染 |
 
 ---
 
 ## Key Decisions
 
-| # | 决策 | 选择 | 理由 |
-|---|------|------|------|
-| KD-1 | 默认打开方式 | `sidepanel` | 连接寿命更安全；匹配迁移默认 |
-| KD-2 | 偏好键 | `ws:uiShell` | 与 `ws:*` 一致 |
-| KD-3 | 行为应用位置 | Service Worker | install/startup 必需 |
-| KD-4 | Action 互斥 | 成对 setPanelBehavior + setPopup | Chrome 约束 |
-| KD-5 | UI 复用 | **完整 HTML 孪生（构建生成 popup.html）+ 单 sidepanel.js**；禁止 10 行空壳 | DOM 全在 HTML；JS 不建壳 |
-| KD-6 | 页面↔SW 状态与唤醒 | **状态源 = storage**；**必选** `storage.onChanged` **与** `onMessage(APPLY_UI_SHELL)` | 消除 SW 休眠竞态；仅此一种消息 |
-| KD-7 | 切换偏好时连接 | 不自动 disconnect；关文档才死 | 可预期 |
-| KD-8 | Popup 丢连接 | 警告 + banner + 默认 sidepanel；不做 SW 持连 | 范围控制 |
-| KD-9 | 设置入口 | 抽屉 **顶部**「界面」分区；立即生效，不经 applyConfigBtn | 全局 Chrome 行为 vs 连接配置分离 |
-| KD-10 | 样式 | `src/css` + `[data-shell="popup"]`；日志区主滚动 | 遵守 css AGENTS |
-| KD-11 | 构建产物名 | **仅** `background.js` 固定；app JS/CSS 可继续 content hash | manifest 稳引用 SW；app 与现网一致 |
-| KD-12 | Agent 文档 | 更新根与 css AGENTS | 仓库约定 |
-| KD-13 | 非目标 | detach、SW 持连、打包、v1 toast 系统 | 范围 |
-| KD-14 | apply 顺序 | 先 disable 旧路径，再 enable 新路径；try/catch + console.error | 降竞态/可观测失败 |
-| KD-15 | 共享常量 | v1 **双文件重复**字符串与 normalize；SW 零 app import | 防 chunk 耦合 |
-| KD-16 | Popup UX 尺寸与 CTA | min **360×480**；banner **含**「改用侧边栏」 | 收束 OQ-1/2 |
-| KD-17 | 用户反馈通道 | v1 **仅** `pushLog('sys')` | 无 toast 实现 |
-| KD-18 | PR-1 产品语义 | **钉死** action 点击打开 Side Panel（有意 UX 强化，非“与现网零差异”） | 代码从未 setPanelBehavior |
-| KD-19 | 卸载钩子 | 两 shell 均 `pagehide` → persist + stopIdle + disconnect | MQTT 卫生 |
-| KD-20 | 首次 popup 教育 | confirm if connected **或** 未 `ws:uiShellPopupWarned`；hint 始终更新 | 补齐未连接用户教育 |
+| #     | 决策                | 选择                                                                                  | 理由                               |
+| ----- | ------------------- | ------------------------------------------------------------------------------------- | ---------------------------------- |
+| KD-1  | 默认打开方式        | `sidepanel`                                                                           | 连接寿命更安全；匹配迁移默认       |
+| KD-2  | 偏好键              | `ws:uiShell`                                                                          | 与 `ws:*` 一致                     |
+| KD-3  | 行为应用位置        | Service Worker                                                                        | install/startup 必需               |
+| KD-4  | Action 互斥         | 成对 setPanelBehavior + setPopup                                                      | Chrome 约束                        |
+| KD-5  | UI 复用             | **完整 HTML 孪生（构建生成 popup.html）+ 单 sidepanel.js**；禁止 10 行空壳            | DOM 全在 HTML；JS 不建壳           |
+| KD-6  | 页面↔SW 状态与唤醒  | **状态源 = storage**；**必选** `storage.onChanged` **与** `onMessage(APPLY_UI_SHELL)` | 消除 SW 休眠竞态；仅此一种消息     |
+| KD-7  | 切换偏好时连接      | 不自动 disconnect；关文档才死                                                         | 可预期                             |
+| KD-8  | Popup 丢连接        | 警告 + banner + 默认 sidepanel；不做 SW 持连                                          | 范围控制                           |
+| KD-9  | 设置入口            | 抽屉 **顶部**「界面」分区；立即生效，不经 applyConfigBtn                              | 全局 Chrome 行为 vs 连接配置分离   |
+| KD-10 | 样式                | `src/css` + `[data-shell="popup"]`；日志区主滚动                                      | 遵守 css AGENTS                    |
+| KD-11 | 构建产物名          | **仅** `background.js` 固定；app JS/CSS 可继续 content hash                           | manifest 稳引用 SW；app 与现网一致 |
+| KD-12 | Agent 文档          | 更新根与 css AGENTS                                                                   | 仓库约定                           |
+| KD-13 | 非目标              | detach、SW 持连、打包、v1 toast 系统                                                  | 范围                               |
+| KD-14 | apply 顺序          | 先 disable 旧路径，再 enable 新路径；try/catch + console.error                        | 降竞态/可观测失败                  |
+| KD-15 | 共享常量            | v1 **双文件重复**字符串与 normalize；SW 零 app import                                 | 防 chunk 耦合                      |
+| KD-16 | Popup UX 尺寸与 CTA | min **360×480**；banner **含**「改用侧边栏」                                          | 收束 OQ-1/2                        |
+| KD-17 | 用户反馈通道        | v1 **仅** `pushLog('sys')`                                                            | 无 toast 实现                      |
+| KD-18 | PR-1 产品语义       | **钉死** action 点击打开 Side Panel（有意 UX 强化，非“与现网零差异”）                 | 代码从未 setPanelBehavior          |
+| KD-19 | 卸载钩子            | 两 shell 均 `pagehide` → persist + stopIdle + disconnect                              | MQTT 卫生                          |
+| KD-20 | 首次 popup 教育     | confirm if connected **或** 未 `ws:uiShellPopupWarned`；hint 始终更新                 | 补齐未连接用户教育                 |
 
 ---
 
 ## Risks
 
-| ID | 风险 | 严重度 | 缓解 |
-|----|------|--------|------|
-| R1 | Popup 关丢失连接被当成 bug | **高** | 默认 sidepanel；confirm；hint；banner；文档 |
-| R2 | dist 路径/SW import 错误导致点击无响应 | **高** | 固定 background.js；产物断言；加载 SW 检查 |
-| R3 | SW 休眠导致仅写 storage 未 apply | **中** | **必选** APPLY_UI_SHELL + onChanged（KD-6） |
-| R4 | panel 与 popup 同时存在、内存不共享 | **低** | 文档说明可接受 |
-| R5 | MQTT 销毁泄漏 timer | **中** | teardown disconnect；幂等 stopMqttClient |
-| R6 | HTML 孪生漂移 | **中** | 生成 popup.html + CI/PR checklist |
-| R7 | polyfill 打进 SW | **中** | V6 约束 + 产物审查 |
-| R8 | PR-1 改变“点击图标”行为引发惊讶 | **中** | 发布说明：此前未绑定 action→panel，现默认绑定侧栏 |
+| ID  | 风险                                   | 严重度 | 缓解                                              |
+| --- | -------------------------------------- | ------ | ------------------------------------------------- |
+| R1  | Popup 关丢失连接被当成 bug             | **高** | 默认 sidepanel；confirm；hint；banner；文档       |
+| R2  | dist 路径/SW import 错误导致点击无响应 | **高** | 固定 background.js；产物断言；加载 SW 检查        |
+| R3  | SW 休眠导致仅写 storage 未 apply       | **中** | **必选** APPLY_UI_SHELL + onChanged（KD-6）       |
+| R4  | panel 与 popup 同时存在、内存不共享    | **低** | 文档说明可接受                                    |
+| R5  | MQTT 销毁泄漏 timer                    | **中** | teardown disconnect；幂等 stopMqttClient          |
+| R6  | HTML 孪生漂移                          | **中** | 生成 popup.html + CI/PR checklist                 |
+| R7  | polyfill 打进 SW                       | **中** | V6 约束 + 产物审查                                |
+| R8  | PR-1 改变“点击图标”行为引发惊讶        | **中** | 发布说明：此前未绑定 action→panel，现默认绑定侧栏 |
 
 ---
 
@@ -723,44 +758,44 @@ chrome.storage.local["ws:uiShellPopupWarned"] = true | false  // optional flag
 
 ### PR-1：Service Worker + 钉死默认 action → Side Panel + Vite SW 输出
 
-| 项 | 内容 |
-|----|------|
-| **Title** | feat: MV3 service worker pins action-click to Side Panel |
-| **Deps** | 无 |
-| **Files** | `src/background.js`, `public/manifest.json`, `vite.config.js`（entryFileNames、background input、polyfill 隔离/验证、移除 unused `viteStaticCopy` import）, `tests/ui-shell.node.test.js`（normalize + mapping 可先测纯函数拷贝）, `tests/check-dist-ui-shell.mjs` 或 npm script, 根 `AGENTS.md` |
-| **Description** | 引入 SW；`applyUiShell('sidepanel')` 有序执行（先 clear popup，再 `openPanelOnActionClick: true`）。**明确产品语义：此前代码未绑定工具栏点击打开侧栏；本 PR 有意启用。** 不暴露 UI 设置。`dist/background.js` 单文件、无 app/mqtt 依赖。 |
-| **Test** | `npm run build` 后存在 `dist/background.js`、`dist/sidepanel.html`；单元测试 mapping；加载 unpacked，SW 无错；**点击工具栏图标打开 Side Panel**；故意错误 popup 路径一次看 console.error（开发备忘） |
+| 项              | 内容                                                                                                                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Title**       | feat: MV3 service worker pins action-click to Side Panel                                                                                                                                                                                                                                         |
+| **Deps**        | 无                                                                                                                                                                                                                                                                                               |
+| **Files**       | `src/background.js`, `public/manifest.json`, `vite.config.js`（entryFileNames、background input、polyfill 隔离/验证、移除 unused `viteStaticCopy` import）, `tests/ui-shell.node.test.js`（normalize + mapping 可先测纯函数拷贝）, `tests/check-dist-ui-shell.mjs` 或 npm script, 根 `AGENTS.md` |
+| **Description** | 引入 SW；`applyUiShell('sidepanel')` 有序执行（先 clear popup，再 `openPanelOnActionClick: true`）。**明确产品语义：此前代码未绑定工具栏点击打开侧栏；本 PR 有意启用。** 不暴露 UI 设置。`dist/background.js` 单文件、无 app/mqtt 依赖。                                                         |
+| **Test**        | `npm run build` 后存在 `dist/background.js`、`dist/sidepanel.html`；单元测试 mapping；加载 unpacked，SW 无错；**点击工具栏图标打开 Side Panel**；故意错误 popup 路径一次看 console.error（开发备忘）                                                                                             |
 
 ### PR-2：`ws:uiShell` + 设置顶栏「界面」+ 必选 message 唤醒
 
-| 项 | 内容 |
-|----|------|
-| **Title** | feat: ws:uiShell preference in settings (immediate apply) |
-| **Deps** | PR-1 |
-| **Files** | `src/background.js`（onChanged + APPLY_UI_SHELL）, `src/sidepanel.html`（顶部界面分区）, `src/sidepanel.js`, `tests/ui-shell.node.test.js` 扩展, 根 `AGENTS.md`；可选 manifest description/title 软化 |
+| 项              | 内容                                                                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Title**       | feat: ws:uiShell preference in settings (immediate apply)                                                                                                                                                                                                           |
+| **Deps**        | PR-1                                                                                                                                                                                                                                                                |
+| **Files**       | `src/background.js`（onChanged + APPLY_UI_SHELL）, `src/sidepanel.html`（顶部界面分区）, `src/sidepanel.js`, `tests/ui-shell.node.test.js` 扩展, 根 `AGENTS.md`；可选 manifest description/title 软化                                                               |
 | **Description** | 读写 `ws:uiShell`；设置 **顶部** 控件立即 storage + message；hint 始终更新；popup confirm（已连接或未 warned）；**仅** `pushLog('sys')`。若尚无 popup.html：临时 `setPopup('sidepanel.html')`，文档注明 **降级 Popup UX**（无 banner/data-shell）。不把 PR-3 挤入。 |
-| **Test** | 切换后下次点击路径变化；重启保偏好；不点「应用并填充 URL」也能切换；单测 normalize |
+| **Test**        | 切换后下次点击路径变化；重启保偏好；不点「应用并填充 URL」也能切换；单测 normalize                                                                                                                                                                                  |
 
 ### PR-3：生成 `popup.html` + popup CSS + banner CTA + pagehide 清理
 
-| 项 | 内容 |
-|----|------|
-| **Title** | feat: generated popup.html shell, compact CSS, teardown hooks |
-| **Deps** | PR-2 |
-| **Files** | 生成脚本或 Vite plugin、`src/popup.html`（生成）、`vite.config.js`、`src/background.js`（popup.html 路径）、`src/css/styles.css`、`src/css/AGENTS.md`、`src/sidepanel.html`/`sidepanel.js`（banner + pagehide）、dist check 含 popup.html |
-| **Description** | 完整 DOM 孪生 + `data-shell=popup`；CSS 滚动所有权；banner+改回侧边栏；`pagehide` persist+disconnect+stopIdle（双 shell）；setPopup 指向 popup.html。 |
-| **Test** | 关 popup 连接断；短视口发送框可见；抽屉可滚；sidepanel 无 banner；生成脚本在改 sidepanel.html 后 diff 清洁；DOM id 与 sidepanel 一致 |
+| 项              | 内容                                                                                                                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Title**       | feat: generated popup.html shell, compact CSS, teardown hooks                                                                                                                                                                             |
+| **Deps**        | PR-2                                                                                                                                                                                                                                      |
+| **Files**       | 生成脚本或 Vite plugin、`src/popup.html`（生成）、`vite.config.js`、`src/background.js`（popup.html 路径）、`src/css/styles.css`、`src/css/AGENTS.md`、`src/sidepanel.html`/`sidepanel.js`（banner + pagehide）、dist check 含 popup.html |
+| **Description** | 完整 DOM 孪生 + `data-shell=popup`；CSS 滚动所有权；banner+改回侧边栏；`pagehide` persist+disconnect+stopIdle（双 shell）；setPopup 指向 popup.html。                                                                                     |
+| **Test**        | 关 popup 连接断；短视口发送框可见；抽屉可滚；sidepanel 无 banner；生成脚本在改 sidepanel.html 后 diff 清洁；DOM id 与 sidepanel 一致                                                                                                      |
 
 ### PR-4（可选）：文档与文案
 
-| 项 | 内容 |
-|----|------|
-| **Title** | docs: UI shell modes, action-click behavior, connection lifetime |
-| **Deps** | PR-3 |
-| **Files** | `docs/01-overview.md`, `docs/02-architecture.md`（更新架构图，勿再只画 sidepanel）, `docs/04-development-guide.md`；可选 manifest name/description/default_title |
-| **Description** | 产品行为、双入口、生成 popup 流程、验证清单；**无打包步骤**。 |
-| **Test** | 文档审阅 |
+| 项              | 内容                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Title**       | docs: UI shell modes, action-click behavior, connection lifetime                                                                                                 |
+| **Deps**        | PR-3                                                                                                                                                             |
+| **Files**       | `docs/01-overview.md`, `docs/02-architecture.md`（更新架构图，勿再只画 sidepanel）, `docs/04-development-guide.md`；可选 manifest name/description/default_title |
+| **Description** | 产品行为、双入口、生成 popup 流程、验证清单；**无打包步骤**。                                                                                                    |
+| **Test**        | 文档审阅                                                                                                                                                         |
 
 ---
 
-*End of design document (r2).*
+_End of design document (r2)._
