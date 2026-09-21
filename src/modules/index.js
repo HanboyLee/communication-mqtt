@@ -25,3 +25,11 @@ export {
   TabRenderer,
   tabRenderer
 } from './TabRenderer.js';
+
+export {
+  getType,
+  parseJson,
+  buildTreeData,
+  renderTreeHtml,
+  createJsonTreeDom
+} from './JsonTreeRenderer.js';

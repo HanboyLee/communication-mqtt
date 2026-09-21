@@ -93,14 +93,16 @@ assert(
   'invalid shell → sidepanel config'
 );
 
-const distDir = resolve(root, 'dist');
+const distDir = existsSync(resolve(root, 'mqtt_dist_extension'))
+  ? resolve(root, 'mqtt_dist_extension')
+  : resolve(root, 'dist');
 if (existsSync(distDir)) {
-  console.log('\n📦 dist/ post-build checks\n');
-  assert(existsSync(resolve(distDir, 'background.js')), 'dist/background.js exists');
-  assert(existsSync(resolve(distDir, 'sidepanel.html')), 'dist/sidepanel.html exists');
-  assert(existsSync(resolve(distDir, 'window.html')), 'dist/window.html exists');
+  console.log(`\n📦 ${distDir.includes('mqtt_dist_extension') ? 'mqtt_dist_extension/' : 'dist/'} post-build checks\n`);
+  assert(existsSync(resolve(distDir, 'background.js')), 'background.js exists');
+  assert(existsSync(resolve(distDir, 'sidepanel.html')), 'sidepanel.html exists');
+  assert(existsSync(resolve(distDir, 'window.html')), 'window.html exists');
 } else {
-  console.log('\nℹ️  SKIP dist checks (dist/ not built yet)');
+  console.log('\nℹ️  SKIP dist checks (not built yet)');
 }
 
 console.log('\n' + '='.repeat(60));

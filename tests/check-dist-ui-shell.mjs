@@ -7,7 +7,9 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dist = resolve(root, 'dist');
+const dist = existsSync(resolve(root, 'mqtt_dist_extension'))
+  ? resolve(root, 'mqtt_dist_extension')
+  : resolve(root, 'dist');
 
 const required = ['background.js', 'sidepanel.html', 'window.html'];
 

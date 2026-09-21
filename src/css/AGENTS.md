@@ -1,37 +1,23 @@
-# src/css/ — Agent 说明
+# src/css/AGENTS.md
 
-本目录是扩展 UI 样式的 **唯一归属地**。新增或修改样式请写在这里，不要再使用或恢复 `src/styles.css` 根路径单文件。
+## Scope
 
-## 当前文件
+适用于 `src/css/**`，并继承仓库根 `AGENTS.md`。
 
-| 文件 | 职责 |
-|------|------|
-| `styles.css` | 主样式表：布局、组件、日志气泡、状态指示、设置分区、浮动独立窗口 shell 适配等 |
+## Boundaries
 
-入口引用：
+- 本目录是扩展 UI 样式的唯一归属地，禁止恢复或使用根路径 `src/styles.css`。
+- **变量体系**：默认亮色主题变量定义在 `:root`；暗色主题通过 `[data-theme="dark"]` 覆盖变量；优先复用变量，避免硬编码颜色。
+- **UI Shell 适配**：
+  - `html[data-shell="sidepanel"]`：侧边栏视图，主滚动位于 `.logs-area`。
+  - `html[data-shell="window"]`：独立浮动窗口视图，header / footer / session toolbar 固定可见，主滚动位于 `.logs-area`。
+- **滚动不变量**：`.logs-area` 作为 flex 子项必须保留 `min-height: 0`，否则会随内容无限撑高导致内部滚动失效。
+- **类名一致性**：类名变动必须同步核对 `sidepanel.html`、`src/window.html`（经脚本生成）及 `TabRenderer.js`。
+- **技术约束**：不引入复杂 CSS 框架重写现有样式体系。
 
-- `src/sidepanel.js`：`import './css/styles.css'`
-- `src/sidepanel.html` / 生成的 `src/window.html`：`href="css/styles.css"`（相对 `src/` 的 HTML 入口）
+## Verification
 
-## 主题变量
+- 样式修改后必须运行 `npm run build`。
+- 可行时分别检查 Side Panel 与独立 Window 两种形态下的长日志滚动、暗色模式及抽屉显示效果。
 
-- 默认亮色主题变量定义在 `:root`（如 `--bg-app`、`--text-primary`、`--accent-primary`、日志/状态色等）。
-- 暗色主题通过 `[data-theme="dark"]` 覆盖同名 CSS 变量。
-- 运行时主题由 HTML 上的 `data-theme` 控制；改颜色优先改变量，避免散落硬编码色值。
-
-## UI Shell（`data-shell`）
-
-| 选择器 | 约定 |
-|--------|------|
-| `html[data-shell="sidepanel"]` | 默认侧边栏；全高 `100vh`，主滚动在 `.logs-area` |
-| `html[data-shell="window"]` | 独立浮动窗口（`chrome.windows.create`，非 action popup）：填满窗口视口；**主滚动在 `.logs-area`**（`min-height: 0` + `overflow-y: auto`）；header/footer 固定可见；设置/主题抽屉内部自滚 |
-
-滚动所有权：header / topic tabs / session toolbar / footer 固定；消息区 `.logs-area` 滚动。窗口寿命警告仅在设置「界面」hint / confirm 中说明，无壳内 banner。
-
-**`.logs-area` 必须** `min-height: 0`（及可选 `min-width: 0`）：作为 flex 子项时否则会随内容撑高、内部无法滚动，导致 `scrollTop` 看起来无效（自动滚动按钮“没反应”）。
-
-## 约定
-
-1. **新样式放本目录**（可继续追加到 `styles.css`，或按需拆分文件并在入口统一引入）。
-2. 与组件相关的类名保持与 `sidepanel.html` / 生成 `window.html` / 模块渲染 DOM 一致。
-3. 不引入完整 CSS 框架重写；现有 Tailwind/PostCSS 配置服务于构建链路，样式以本目录为准。
+仅当样式体系、Shell 约定或核心不变量发生变化时才更新本文件。

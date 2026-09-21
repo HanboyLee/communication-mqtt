@@ -96,6 +96,15 @@ npm run watch
 3. 修改源代码后，Vite 会自动热重载
 4. 点击扩展图标刷新 Side Panel
 
+## 发布与分发命名约定（仅供开发者自行操作）
+
+> ⚠️ **安全与职责边界声明**：
+> 依据项目全局规约（[`.agents/rules/no-packaging.md`](../.agents/rules/no-packaging.md)），AI Agent 仅负责常规开发构建（`npm run build`），**严禁协助制作任何形式的 `.zip` / `.crx` 分发包或发布目录**。
+
+当开发者（用户本人）需要导出分发包时，请遵循以下约定：
+- **标准命名**：发布物统一命名为 **`mqtt_dist_extension`**（例如压缩包为 `mqtt_dist_extension.zip`，解压发布目录为 `mqtt_dist_extension/`）。
+- **版本库隔离**：发布产物必须被 `.gitignore` 排除，严禁提交到 Git 仓库。
+
 ## 多主题功能开发指南 ⭐ 新增
 
 ### 数据结构

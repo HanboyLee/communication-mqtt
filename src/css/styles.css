@@ -837,6 +837,13 @@ input:focus, select:focus, textarea:focus {
     position: relative;
 }
 
+.log-bubble.has-json-tree {
+    max-width: 95%;
+    padding: 0.35rem 0.5rem;
+    white-space: normal;
+    word-break: normal;
+}
+
 .log-row.rx { justify-content: flex-start; }
 .log-row.rx .log-bubble {
     background: var(--log-rx-bg);
@@ -967,3 +974,191 @@ html[data-shell="window"] .topic-manage-panel {
     max-height: 100%;
     overflow-y: auto;
 }
+
+/* -------------------------------------------------------------------------- */
+/* JSON Tree View Component                                                   */
+/* -------------------------------------------------------------------------- */
+
+.json-tree-container {
+    width: 100%;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .json-tree-container {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.json-tree-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed var(--glass-border);
+    user-select: none;
+}
+
+.json-tree-badge {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 1rem;
+    background: var(--input-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.json-tree-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.json-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.json-btn:hover {
+    background: var(--input-bg);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.json-tree-body {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.json-node {
+    padding-left: calc(var(--depth, 0) * 0.9rem);
+    position: relative;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.json-node-header {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 0.05rem 0.2rem;
+    margin-left: -0.2rem;
+    transition: background-color 0.15s;
+    user-select: none;
+}
+
+.json-node-header:hover {
+    background: rgba(125, 125, 125, 0.12);
+}
+
+.json-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.json-node.collapsed > .json-node-header .json-toggle {
+    transform: rotate(-90deg);
+}
+
+.json-node.collapsed > .json-children {
+    display: none;
+}
+
+.json-node:not(.collapsed) > .json-node-header .json-summary,
+.json-node:not(.collapsed) > .json-node-header .json-bracket-inline {
+    display: none;
+}
+
+.json-summary {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0 0.2rem;
+    opacity: 0.8;
+}
+
+.json-bracket {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.json-key {
+    color: #0284c7; /* Sky 600 */
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+[data-theme="dark"] .json-key {
+    color: #38bdf8; /* Sky 400 */
+}
+
+.json-val-string {
+    color: #16a34a; /* Green 600 */
+}
+
+[data-theme="dark"] .json-val-string {
+    color: #4ade80; /* Green 400 */
+}
+
+.json-val-number {
+    color: #ea580c; /* Orange 600 */
+    font-weight: 500;
+}
+
+[data-theme="dark"] .json-val-number {
+    color: #fb923c; /* Orange 400 */
+}
+
+.json-val-boolean {
+    color: #8b5cf6; /* Violet 500 */
+    font-weight: 600;
+}
+
+[data-theme="dark"] .json-val-boolean {
+    color: #a78bfa; /* Violet 400 */
+}
+
+.json-val-null,
+.json-val-undefined {
+    color: #94a3b8; /* Slate 400 */
+    font-style: italic;
+    font-weight: 500;
+}
+
+.json-leaf-line {
+    padding: 0.05rem 0.2rem;
+}
+
+.log-prefix-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--glass-border);
+    word-break: break-all;
+    user-select: text;
+}
+
+

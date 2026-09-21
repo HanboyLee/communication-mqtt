@@ -30,7 +30,7 @@ export class TopicRouter {
     const matchingSessions = this.manager.findMatchingSessions(messageTopic);
     
     if (matchingSessions.length === 0) {
-      console.warn(`无会话匹配主题: ${messageTopic}`);
+      console.log(`[routeMessage] 未匹配已订阅会话主题: ${messageTopic}`);
       return [];
     }
 

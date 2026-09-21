@@ -121,6 +121,12 @@
       "skillPath": "skills/engineering/triage/SKILL.md",
       "computedHash": "8695824ffe756567f6cf3b758853a094a9c974bf96226cde88b0b6c08099dabc"
     },
+    "typesafe-decision": {
+      "source": "HanboyLee/typesafe-decision-skill",
+      "sourceType": "github",
+      "skillPath": "skills/typesafe-decision/SKILL.md",
+      "computedHash": "33108703c3924aa657984370e1393b0c723cb8500fb04ed5f36cf07b34ccb80c"
+    },
     "wayfinder": {
       "source": "mattpocock/skills",
       "sourceType": "github",

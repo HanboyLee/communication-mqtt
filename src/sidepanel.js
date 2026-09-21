@@ -3,7 +3,7 @@ import './css/styles.css';
 import mqtt from 'mqtt';
 
 // Multi-topic modules
-import { topicManager, topicRouter, topicStorage, tabRenderer } from './modules/index.js';
+import { topicManager, topicRouter, topicStorage, tabRenderer, createJsonTreeDom, parseJson } from './modules/index.js';
 
 const Status = {
   Connecting: 'connecting',
@@ -348,55 +348,88 @@ const refreshPreview = () => {
   cfgDom.preview.textContent = buildUrlFromConfig();
 };
 
+const fillLogBubble = (bubble, log, jsonFormatEnabled = true) => {
+  bubble.innerHTML = '';
+  if (log.kind !== 'sys' && jsonFormatEnabled) {
+    const jsonRes = parseJson(log.message);
+    if (jsonRes.valid) {
+      bubble.classList.add('has-json-tree');
+      if (jsonRes.prefix) {
+        const prefixEl = document.createElement('div');
+        prefixEl.className = 'log-prefix-tag';
+        prefixEl.textContent = jsonRes.prefix;
+        bubble.appendChild(prefixEl);
+      }
+      const treeDom = createJsonTreeDom(jsonRes.data, {
+        rawText: typeof jsonRes.data === 'object' ? JSON.stringify(jsonRes.data, null, 2) : log.message
+      });
+      bubble.appendChild(treeDom);
+      return;
+    }
+  }
+  bubble.classList.remove('has-json-tree');
+  bubble.textContent = log.message;
+};
+
+const createLogRowDom = (log, jsonFormatEnabled = true) => {
+  const row = document.createElement('div');
+  row.className = `log-row ${log.kind}`; // rx, tx, sys
+  
+  const bubble = document.createElement('div');
+  bubble.className = 'log-bubble';
+  fillLogBubble(bubble, log, jsonFormatEnabled);
+
+  const contentCol = document.createElement('div');
+  contentCol.style.display = 'flex';
+  contentCol.style.flexDirection = 'column';
+  contentCol.style.alignItems = log.kind === 'tx' ? 'flex-end' : log.kind === 'sys' ? 'center' : 'flex-start';
+  contentCol.style.maxWidth = '100%';
+  
+  contentCol.appendChild(bubble);
+  
+  if (log.kind !== 'sys') {
+    const ts = document.createElement('div');
+    ts.className = 'timestamp';
+    ts.textContent = log.time;
+    contentCol.appendChild(ts);
+  }
+  
+  row.appendChild(contentCol);
+  return row;
+};
+
+/**
+ * 增量追加一条日志节点到界面容器（不破坏已有 DOM，保留展开与折叠状态）
+ */
+const appendLogToContainer = (log, jsonFormatEnabled = true) => {
+  const emptyState = dom.logContainer.querySelector('.empty-state');
+  if (emptyState) {
+    dom.logContainer.innerHTML = '';
+  }
+
+  const row = createLogRowDom(log, jsonFormatEnabled);
+  dom.logContainer.appendChild(row);
+
+  // 限制界面最大节点数，超出时安全移除头部最旧节点
+  if (dom.logContainer.children.length > 1000) {
+    dom.logContainer.firstElementChild?.remove();
+  }
+
+  scrollLogsToBottomIfNeeded();
+};
+
 const pushLog = (kind, message) => {
   const entry = { kind, message: prettify(message), time: formatTime() };
   logs.push(entry);
-  renderLogs();
+  if (logs.length > 1000) logs.shift();
+  appendLogToContainer(entry, true);
 };
 
 const renderLogs = () => {
   dom.logContainer.innerHTML = '';
   const frag = document.createDocumentFragment();
   logs.forEach((log) => {
-    const row = document.createElement('div');
-    row.className = `log-row ${log.kind}`; // rx, tx, sys
-    
-    const bubble = document.createElement('div');
-    bubble.className = 'log-bubble';
-    bubble.textContent = log.message;
-
-    const wrap = document.createElement('div');
-    // For timestamp, prototype puts it below bubble?
-    // styles key: .log-row.rx { justify-content: flex-start; }
-    // The timestamp in prototype css is .timestamp.
-    
-    wrap.appendChild(bubble); // Just append bubble to row?
-    // Wait, prototype styles: .log-row is flex.
-    // .timestamp is display block inside something?
-    // In src logic it was inside a wrap.
-    // Let's look at prototype HTML structure again or guess based on CSS.
-    // CSS: .timestamp { margin-top: 0.25rem; }
-    // If I append bubble and timestamp to row directly, they will be side-by-side or flexed.
-    // Better to wrap them if we want timestamp below bubble.
-    // Actually, looking at previous src JS, it wrapped them. 
-    // Let's assume a wrapper div is needed for column layout of bubble+time.
-    const contentCol = document.createElement('div');
-    contentCol.style.display = 'flex';
-    contentCol.style.flexDirection = 'column';
-    contentCol.style.alignItems = log.kind === 'tx' ? 'flex-end' : log.kind === 'sys' ? 'center' : 'flex-start';
-    contentCol.style.maxWidth = '100%';
-    
-    contentCol.appendChild(bubble);
-    
-    if (log.kind !== 'sys') {
-      const ts = document.createElement('div');
-      ts.className = 'timestamp';
-      ts.textContent = log.time;
-      contentCol.appendChild(ts);
-    }
-    
-    row.appendChild(contentCol);
-    frag.appendChild(row);
+    frag.appendChild(createLogRowDom(log, true));
   });
   
   if (logs.length === 0) {
@@ -562,7 +595,18 @@ const sendMessage = () => {
     }
     mqttClient.publish(pubTopic, text);
     recordInteraction();
-    pushLog('tx', `[MQTT PUBLISH] ${pubTopic}\n${text}`);
+
+    const activeSession = topicManager.getActiveSession();
+    if (activeSession) {
+      topicRouter.addSentMessage(pubTopic, text);
+      updateSessionToolbar(activeSession);
+      const lastLog = activeSession.logs[activeSession.logs.length - 1];
+      if (lastLog) {
+        appendLogToContainer(lastLog, activeSession.jsonFormat);
+      }
+    } else {
+      pushLog('tx', `[MQTT PUBLISH] ${pubTopic}\n${text}`);
+    }
   } else {
     if (status !== Status.Connected || !ws) {
       pushLog('sys', '未连接');
@@ -760,14 +804,25 @@ const connectMqtt = (url) => {
         tabRenderer.updateBadge(session.id);
       }
       
-      // Re-render if active session received message
+      // 增量追加新消息，保留已展开的 JSON 树和滚动状态
       const activeSession = topicManager.getActiveSession();
       if (activeSession && matchedSessions.some(s => s.id === activeSession.id)) {
-        renderActiveSessionLogs();
+        updateSessionToolbar(activeSession);
+        const lastLog = activeSession.logs[activeSession.logs.length - 1];
+        if (lastLog) {
+          const filterLower = (activeSession.filter || '').toLowerCase();
+          if (!filterLower || lastLog.message.toLowerCase().includes(filterLower)) {
+            appendLogToContainer(lastLog, activeSession.jsonFormat);
+          }
+        }
       }
     } else {
-      // Fallback: no matching session, log to global (legacy behavior)
-      pushLog('rx', `[${topic}] ${text}`);
+      // Fallback: 未匹配已订阅会话，记录到全局日志；若当前有活动会话，不打乱多主题视图
+      const entry = { kind: 'rx', message: prettify(`[${topic}] ${text}`), time: formatTime() };
+      logs.push(entry);
+      if (!topicManager.getActiveSession()) {
+        renderLogs();
+      }
     }
   });
 
@@ -1135,6 +1190,7 @@ const initSessionToolbar = () => {
     if (session) {
       session.jsonFormat = !session.jsonFormat;
       dom.sessionJsonBtn.classList.toggle('active', session.jsonFormat);
+      topicStorage.saveAll().catch(() => {});
       renderActiveSessionLogs();
     }
   });
@@ -1178,35 +1234,12 @@ const renderActiveSessionLogs = () => {
   // Render session logs
   dom.logContainer.innerHTML = '';
   const frag = document.createDocumentFragment();
-  
-  for (const log of session.getFilteredLogs()) {
-    const row = document.createElement('div');
-    row.className = `log-row ${log.kind}`;
-    
-    const bubble = document.createElement('div');
-    bubble.className = 'log-bubble';
-    bubble.textContent = log.message;
-    
-    const contentCol = document.createElement('div');
-    contentCol.style.display = 'flex';
-    contentCol.style.flexDirection = 'column';
-    contentCol.style.alignItems = log.kind === 'tx' ? 'flex-end' : log.kind === 'sys' ? 'center' : 'flex-start';
-    contentCol.style.maxWidth = '100%';
-    
-    contentCol.appendChild(bubble);
-    
-    if (log.kind !== 'sys') {
-      const ts = document.createElement('div');
-      ts.className = 'timestamp';
-      ts.textContent = log.time;
-      contentCol.appendChild(ts);
-    }
-    
-    row.appendChild(contentCol);
-    frag.appendChild(row);
+  const filtered = session.getFilteredLogs();
+  for (const log of filtered) {
+    frag.appendChild(createLogRowDom(log, session.jsonFormat));
   }
   
-  if (session.logs.length === 0) {
+  if (filtered.length === 0) {
     dom.logContainer.innerHTML = `
       <div class="empty-state">
         <i class="fa-solid fa-inbox"></i>

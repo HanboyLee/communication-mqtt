@@ -77,7 +77,7 @@ export default defineConfig({
   base: './',
   publicDir: '../public',
   build: {
-    outDir: '../dist',
+    outDir: '../mqtt_dist_extension',
     emptyOutDir: true,
     rollupOptions: {
       input: {

@@ -1,0 +1,22 @@
+interface:
+  display_name: typesafe decision
+  short_description: 'Use for bounded semantic decisions, intent classification, tool
+    or subagent routing,
+
+    candidate selection, evidence verification, and uncertainty handling. For coding
+    tasks,
+
+    use when deciding how to analyze dependencies, verify FRD requirements, or review
+
+    meaningful code changes. Prefer deterministic rules for exact conditions. TypeSafe
+
+    runtime, Jev MCP, and CodeGraph are optional integrations, not prerequisites.'
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
