@@ -37,6 +37,7 @@ Agent 平时**无需全量通读**，但必须知晓以下文档资产的存在�
 | [`docs/04-development-guide.md`](docs/04-development-guide.md) | 开发调试与环境指南 | 遇到 Chrome 扩展 API 权限、本地环境调试困难时 |
 | [`docs/05-multiple-topics-plan.md`](docs/05-multiple-topics-plan.md) | MQTT 多主题会话方案 | 修改或扩展 Topic 订阅管理、通配符路由匹配、Tab 交互时 |
 | [`docs/06-ui-shell-popup-vs-sidepanel.md`](docs/06-ui-shell-popup-vs-sidepanel.md) | 双 UI Shell（侧边栏/浮动窗）方案 | 涉及独立窗口生命周期、弹窗行为优化、`window.html` 机制时 |
+| [`docs/08-cicd-pipeline-plan.md`](docs/08-cicd-pipeline-plan.md) | CI/CD 自动化流水线规划与规范 | 调整自动化构建、配置 GitHub Actions 或发版发布流程时 |
 
 ## Hard Constraints (硬性约束)
 

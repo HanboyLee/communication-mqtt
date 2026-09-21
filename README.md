@@ -1,389 +1,223 @@
-# WebSocket Side Panel Devtool
+# WebSocket & MQTT Side Panel Devtool
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/websocket-extension)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/HanboyLee/communication-mqtt)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/chrome--extension-manifest%20v3-orange.svg)](https://developer.chrome.com/docs/extensions/mv3/)
+[![CI](https://img.shields.io/badge/CI-Passing-brightgreen.svg)](.github/workflows/ci.yml)
 
-## 项目简介
+## 📌 项目简介
 
-WebSocket Side Panel Devtool 是一款专为 Chrome 浏览器打造的 WebSocket 和 MQTT 调试工具。通过 Chrome Side Panel API，该扩展为开发者提供了便捷的侧边栏调试环境，支持实时消息收发、日志记录、主题管理等强大功能。
+**WebSocket & MQTT Side Panel Devtool** 是一款专为 Google Chrome 打造的现代高性能 WebSocket 与 MQTT-over-WebSocket 实时调试工具。
 
-无需离开当前标签页即可调试 WebSocket 连接，是前后端开发、IoT 设备调试、实时通信测试的理想工具。
+采用 **Vanilla JS + Chrome Extension Manifest V3 + Vite + MQTT.js** 构建，具备极高的运行速度与纯粹的轻量架构。扩展全面支持 **Side Panel 侧边栏** 与 **独立浮动窗口（Floating Window）** 双 UI Shell 运行形态，支持多主题多会话分流、通配符路由匹配、交互式 JSON 树形图以及增量日志无损渲染，是 IoT 设备开发、前后端联调及实时消息测试的理想工具。
 
-## 核心功能
+---
 
-- 🔌 **双模式连接**：支持原生 WebSocket 和 MQTT-over-WebSocket 两种连接模式
-- 📑 **多主题管理**：同时订阅多个 MQTT 主题，独立管理每个主题的消息日志
-- 📝 **实时消息日志**：气泡式消息展示，区分发送（TX）、接收（RX）和系统（SYS）消息
-- 💾 **消息历史记录**：自动保存发送历史，一键快速重发
-- ⏱️ **自动断开**：可配置空闲超时自动断开连接，节省资源
-- 🌙 **主题切换**：支持亮色/暗色双主题，护眼又美观
-- ⏸️ **会话控制**：每主题独立暂停/恢复、JSON 格式化、自动滚动
-- 🔧 **灵活配置**：支持手动输入 URL 或通过设置面板构建连接参数
-- 📊 **状态指示**：实时显示连接状态和消息统计
+## ✨ 核心特性
 
-## 截图
+- 🔌 **双模式连接支持**：
+  - **原生 WebSocket**（`ws://` 与 `wss://`）
+  - **MQTT-over-WebSocket**（支持认证、ClientID 自定义、Clean Session、自动重连等）
+- 🪟 **双 UI Shell 形态**：
+  - **Side Panel 侧边栏模式**：内嵌于浏览器右侧，无需切屏即可对照页面联调。
+  - **独立浮动窗口模式**：通过专用快捷键或上下文菜单独立唤起，生命周期独立，防止切换 Tab 影响调试。
+- 📑 **多主题独立会话（Topic Sessions）**：
+  - 动态添加多个 MQTT 订阅主题，每个主题拥有独立 Tab 标签页。
+  - 具备独立消息计数、未读指示、独立暂停/继续（Pause/Resume）、清屏控制。
+  - **通配符路由匹配**：原生支持 MQTT 单层通配符（`+`）与多层通配符（`#`）智能分发。
+- 🌳 **交互式 JSON 树形渲染（v0.2.0 新增）**：
+  - **智能识别**：自动解析 TX/RX 中的 JSON 报文（自动识别并剥离前缀标签）。
+  - **逐层折叠/展开**：支持 Object 与 Array 树形节点逐级展开与折叠，带有结构大小标注。
+  - **语法高亮**：对 Key、String、Number、Boolean、Null 进行现代化配色渲染。
+  - **增量追加渲染机制**：新数据流进入时采用 DOM 局部追加，**绝不重刷或折叠用户已展开的树节点**。
+  - **快捷操作**：提供一键复制格式化 JSON 与复制原始报文。
+- 💾 **本地状态与持久化**：
+  - 自动记忆上次连接参数、认证信息、主题订阅与输入历史记录（`chrome.storage.local`）。
+  - 输入框支持历史记录回填与 `Ctrl+Enter` 快速发送。
+- 🌓 **现代化视觉设计**：
+  - 完美适配浅色（Light）与深色（Dark）主题模式。
+  - 滚动锁定与智能贴底滚动能力。
+- 🚀 **自动化 CI/CD 流水线**：
+  - GitHub Actions 跨平台（Node 18/20）自动化测试与构建门禁。
+  - 语义化版本 Tag 自动触发产物打包并发布 GitHub Release。
 
-> *主界面 - 侧边栏调试面板*
+---
 
-![主界面](screenshot.png)
+## 📸 界面预览
 
-主要界面区域：
-- 左上角：连接状态指示器
-- 顶部栏：URL 输入、连接控制、主题切换
-- 主题标签栏：多主题切换和管理
-- 日志区域：气泡式消息展示
-- 会话工具栏：暂停、清空、JSON格式化等控制
-- 底部输入区：消息发送和历史记录快捷按钮
+> *侧边栏与独立窗口双模态调试界面*
 
-## 安装说明
+![主界面预览](screenshot.png)
 
-### 前置要求
+**功能区域概览**：
+1. **顶部连接栏**：协议切换（WS/MQTT）、服务器地址、连接/断开控制、主题配置与独立窗口开关。
+2. **多主题标签栏**：显示已订阅主题、未读角标、快速切换与关闭。
+3. **日志展示区域**：气泡式消息流，直观标示发送（TX）、接收（RX）与系统日志（SYS），支持 JSON 树交互。
+4. **会话控制栏**：暂停/恢复流、清空日志、自动滚动锁定。
+5. **底部输入区**：快捷历史标签、多行输入与一键发送。
 
-- **浏览器**：Google Chrome（版本 114+）或 Microsoft Edge（版本 114+），需支持 Side Panel API
-- **开发环境**：
-  - [Node.js](https://nodejs.org/) 版本 18.x 或更高
-  - npm（随 Node.js 一起安装）
+---
 
-### 普通用户安装
+## 🛠️ 安装与使用
 
-1. 下载最新版本的扩展压缩包
-2. 解压缩找到 `dist/` 文件夹
-3. 打开 Chrome 浏览器，导航至 `chrome://extensions/`
-4. 启用右上角的「开发者模式」
-5. 点击「加载已解压的扩展程序」按钮
-6. 选择解压后的 `dist/` 文件夹
-7. 扩展安装完成，可以使用了！
+### 普通用户安装（从 Release 安装）
 
-### 开发者安装
+1. 前往本仓库 [Releases 页面](https://github.com/HanboyLee/communication-mqtt/releases) 下载最新发行版压缩包（如 `websocket-mqtt-devtool-v0.2.0.zip`）。
+2. 解压压缩包到本地目录。
+3. 打开 Google Chrome 或 Edge 浏览器，访问 `chrome://extensions/`。
+4. 打开右上角的 **「开发者模式（Developer mode）」** 开关。
+5. 点击左上角 **「加载已解压的扩展程序（Load unpacked）」** 按钮。
+6. 选择解压出的扩展目录（包含 `manifest.json` 的目录）。
+7. 点击浏览器工具栏中的拼图图标，将插件固定在工具栏，即可立即开始使用！
 
-1. **克隆项目仓库**：
-   ```bash
-   git clone https://github.com/yourusername/websocket-extension.git
-   cd websocket-extension
-   ```
+### 开发者安装与本地调试
 
-2. **安装依赖**：
-   ```bash
-   npm install
-   ```
+#### 1. 前置依赖
+- [Node.js](https://nodejs.org/)（推荐 18.x 或 20.x）
+- npm（随 Node.js 一同提供）
 
-3. **构建扩展**：
-   ```bash
-   # 开发模式（热重载）
-   npm run dev
-
-   # 生产构建
-   npm run build
-
-   # 监听模式（自动重新构建）
-   npm run watch
-   ```
-
-4. **在 Chrome 中加载**：
-   - 打开 `chrome://extensions/`
-   - 启用「开发者模式」
-   - 点击「加载已解压的扩展程序」
-   - 选择 `dist/` 文件夹
-
-## 快速开始
-
-### 打开侧边栏
-
-1. 点击浏览器工具栏中的扩展图标
-2. 从上下文菜单中选择「打开侧边栏」
-3. WebSocket/MQTT 调试工具将显示在侧边栏中
-
-### 连接服务器
-
-**WebSocket 模式**：
-1. 输入 WebSocket URL（如 `wss://echo.websocket.org`）
-2. 点击「连接」按钮
-3. 连接成功后状态指示器将变为绿色
-
-**MQTT 模式**：
-1. 点击模式切换开关切换到 MQTT
-2. 输入 MQTT-over-WebSocket URL（如 `wss://test.mosquitto.org:8081/mqtt`）
-3. 可选：在设置面板中配置认证（用户名/密码）
-4. 点击「连接」按钮
-
-### 订阅 MQTT 主题
-
-1. 在 MQTT 模式下，在主题输入字段中输入主题名称（如 `sensors/temperature`）
-2. 连接后扩展会自动订阅该主题
-3. 接收的消息将带有时间戳和负载显示在日志区域
-
-### 管理多主题标签页
-
-扩展支持通过标签页界面同时管理多个 MQTT 主题：
-
-1. **创建新主题标签**：
-   - 点击现有标签旁边的「+」按钮
-   - 在对话框中输入主题名称（如 `sensors/humidity`）
-   - 为该特定主题创建一个新标签
-
-2. **切换主题**：
-   - 点击任意标签切换到该主题的视图
-   - 日志区域仅显示所选主题的消息
-   - 每个主题维护自己的消息历史
-
-3. **向主题发送消息**：
-   - 选择所需主题的标签
-   - 在输入字段中输入消息负载
-   - 按 `Ctrl+Enter` 或点击发送
-
-4. **管理主题标签**：
-   - 每个标签显示主题名称
-   - 活动标签会高亮显示
-   - 消息按主题过滤，清晰明了
-
-## 使用指南
-
-### 发送消息
-
-1. 确保已连接到服务器
-2. 对于 MQTT：选择所需的主题标签
-3. 在底部输入字段中输入消息
-4. 按 `Ctrl+Enter` 或点击「发送」按钮
-5. 发送的消息在日志中显示为蓝色 `tx` 标记
-
-### 其他功能
-
-- **设置面板**：点击齿轮图标配置高级选项（认证、自动重连、空闲超时）
-- **消息历史**：以前的消息作为标签显示在输入字段上方，便于快速重用
-- **主题切换**：使用太阳/月亮图标在亮色和暗色主题之间切换
-- **自动滚动**：切换滚动锁定以在新消息到达时暂停自动滚动
-
-## 配置选项
-
-### 连接设置
-
-访问设置面板（齿轮图标）以配置：
-
-| 选项 | 说明 | 默认值 |
-|------|------|--------|
-| 连接模式 | WebSocket 或 MQTT | `mqtt` |
-| 客户端 ID | MQTT 客户端标识 | 自动生成 |
-| 协议 | `ws` 或 `wss` | `ws` |
-| 主机 | 服务器地址 | `192.168.10.190` |
-| 端口 | 服务器端口 | `8884` |
-| 路径 | MQTT 路径 | `/mqtt` |
-| SSL/TLS | 启用加密连接 | 关闭 |
-| 用户名 | 认证用户名 | - |
-| 密码 | 认证密码 | - |
-| 自动重连 | 断开后自动重连 | 关闭 |
-| 发布主题 | MQTT 发布消息的主题 | - |
-| 空闲超时 | 无操作自动断开时间（秒） | `0`（禁用） |
-| 历史记录数 | 保存的历史消息数量 | `5` |
-
-### 存储键值
-
-扩展使用 `chrome.storage.local` 进行持久化：
-
-| 键 | 描述 |
-|-----|------|
-| `ws:url` | 最后使用的连接 URL |
-| `ws:idleSeconds` | 空闲超时设置 |
-| `ws:history` | 消息历史数组 |
-| `ws:historySize` | 最大历史大小（1-50） |
-| `ws:theme` | 当前主题（`light` 或 `dark`） |
-| `ws:connConfig` | 连接配置对象 |
-| `ws:topicConfigs` | 多主题会话配置 |
-| `ws:activeTopicId` | 当前活动主题会话 |
-| `ws:topicOrder` | 主题会话的标签顺序 |
-
-## 技术栈
-
-### 核心依赖
-
-- **[mqtt](https://github.com/mqttjs/MQTT.js)** (v5.3.6) – MQTT over WebSocket 客户端库
-- **[vite-plugin-node-polyfills](https://github.com/nickcrawford/vite-plugin-node-polyfills)** – 浏览器兼容的 Node.js polyfills
-
-### 开发工具
-
-- **[Vite](https://vitejs.dev/)** (v5.2.0) – 快速构建工具和开发服务器
-- **[PostCSS + Autoprefixer](https://postcss.org/)** – CSS 处理和供应商前缀
-- **[Tailwind CSS](https://tailwindcss.com/)** – 实用优先的 CSS 框架
-
-### UI 资源
-
-- **[Font Awesome](https://fontawesome.com/)** – 图标集（通过 CDN 加载）
-- **[Inter](https://rsms.me/inter/)** – 主要 UI 字体
-- **[JetBrains Mono](https://www.jetbrains.com/lp/mono/)** – 代码等宽字体
-
-## 项目结构
-
-```
-websocketExtension/
-├── src/
-│   ├── sidepanel.html          # 主 HTML 结构
-│   ├── sidepanel.js            # 核心应用逻辑
-│   ├── styles.css              # 使用 CSS 变量的样式
-│   ├── modules/                # 多主题管理系统
-│   │   ├── topicManager.js     # 会话生命周期和主题匹配
-│   │   ├── topicRouter.js      # 消息路由到会话
-│   │   ├── topicStorage.js     # Chrome 存储持久化
-│   │   ├── tabRenderer.js      # 标签栏 UI 渲染
-│   │   └── index.js            # 模块导出
-│   └── tests/                  # 模块单元测试
-├── public/
-│   ├── manifest.json           # Chrome 扩展清单（V3）
-│   └── icons/                  # 扩展图标
-├── docs/                       # 项目文档
-├── dist/                       # 构建输出（生成）
-├── vite.config.js              # Vite 配置
-└── package.json                # 依赖和脚本
+#### 2. 克隆与安装
+```bash
+git clone https://github.com/HanboyLee/communication-mqtt.git
+cd communication-mqtt
+npm install
 ```
 
-## 架构设计
-
-应用遵循模块化架构，关注点分离清晰：
-
+#### 3. 构建与打包
+```bash
+# 执行完整构建（包含 UI 模板校验与构建产物断言）
+npm run build
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      sidepanel.js (主程序)                   │
-│  - WebSocket/MQTT 连接管理                                    │
-│  - UI 事件处理器                                              │
-│  - 模块编排                                                   │
-└─────────────┬───────────────────────────────────────────────┘
-              │
-    ┌─────────┴─────────────────────────────┐
-    │                                       │
-    ▼                                       ▼
-┌─────────────────┐                 ┌─────────────────┐
-│  TopicManager   │◄────────────────│  TopicRouter    │
-│  - 会话管理      │                 │  - 消息接收     │
-│  - 活动状态      │                 │  - 消息发送     │
-│  - 主题匹配      │                 │  - 系统消息     │
-└────────┬────────┘                 └─────────────────┘
-         │                                   │
-    ┌────┴────────┐                   ┌──────┴───────┐
-    │             │                   │              │
-    ▼             ▼                   ▼              ▼
-┌─────────┐ ┌──────────┐      ┌──────────┐  ┌────────────┐
-│TabRender│ │TopicStore│      │   MQTT   │  │   Storage  │
-│   UI    │ │  配置     │      │  客户端  │  │chrome.local│
-└─────────┘ └──────────┘      └──────────┘  └────────────┘
-```
+> **注意**：构建输出目录为 `mqtt_dist_extension/`。
 
-### 模块说明
+#### 4. 在 Chrome 中加载调试
+1. 打开 Chrome 访问 `chrome://extensions/`。
+2. 开启「开发者模式」。
+3. 点击「加载已解压的扩展程序」，选择项目根目录下的 **`mqtt_dist_extension`** 文件夹。
+4. 本地修改代码后，重新执行 `npm run build`，并在扩展管理界面点击该扩展的「刷新」图标即可。
 
-**TopicManager**：所有主题会话的中央状态管理器。处理会话生命周期、MQTT 通配符主题匹配和活动会话跟踪。
+---
 
-**TopicRouter**：根据 MQTT 通配符规则（`+` 单级，`#` 多级）将传入的 MQTT 消息路由到匹配的 TopicSession 实例。
+## ⌨️ 常用快捷键
 
-**TopicStorage**：使用 Chrome 的 `chrome.storage.local` API 的持久化层。更改时自动保存会话配置。
+| 操作 | Windows / Linux | macOS |
+| :--- | :--- | :--- |
+| **打开独立浮动窗口** | `Ctrl + Shift + U` | `Command + Shift + U` |
+| **发送消息** | `Ctrl + Enter` | `Command + Enter` |
 
-**TabRenderer**：渲染标签栏 UI 并处理标签交互。观察 TopicManager 状态变化并自动重新渲染。
+---
 
-## 开发指南
-
-### 构建命令
+## 💻 核心脚本命令
 
 ```bash
-# 安装依赖
-npm install
-
-# 开发模式（热重载）
+# 启动本地开发服务（热更新）
 npm run dev
 
-# 生产构建
+# 执行生产环境构建，生成 mqtt_dist_extension/
 npm run build
 
-# 监听变化并构建
+# 监听模式构建（用于持续开发调试）
 npm run watch
+
+# 运行完整自动化测试套件（多主题匹配、UI Shell 孪生、JSON 树形渲染）
+npm test
+
+# 基于 sidepanel.html 重新生成 window.html 模板
+npm run generate:window
 ```
 
-### 测试
+---
 
-本项目使用带有原生 JavaScript 的自定义测试工具：
+## 📁 项目结构
 
+```
+communication-mqtt/
+├── .github/
+│   └── workflows/              # GitHub Actions CI/CD 流水线配置
+│       ├── ci.yml              # 持续集成门禁（Node 18/20 构建与测试）
+│       └── release.yml         # 自动发版流水线（Tag 驱动打包 GitHub Release）
+├── public/
+│   ├── manifest.json           # Chrome Extension MV3 清单配置
+│   └── icons/                  # 扩展各尺寸应用图标
+├── src/
+│   ├── sidepanel.html          # UI 源文件（DOM 结构源定义）
+│   ├── sidepanel.js            # UI Shell 入口与事件调度编排
+│   ├── window.html             # 独立浮动窗口孪生文件（由脚本自动生成，严禁手改）
+│   ├── background.js           # MV3 Service Worker（轻量调度与窗口拉起）
+│   ├── css/
+│   │   ├── AGENTS.md           # 样式规范指引
+│   │   └── styles.css          # 全局样式与暗黑/明亮主题定义
+│   └── modules/                # 业务领域模块（高内聚、纯逻辑）
+│       ├── AGENTS.md           # 模块设计硬约束规范
+│       ├── TopicManager.js     # 多主题会话状态与生命周期
+│       ├── TopicRouter.js      # MQTT 通配符（+/ #）多路路由分发器
+│       ├── TopicStorage.js     # 本地持久化储存封装
+│       ├── TabRenderer.js      # 多主题标签栏渲染器
+│       ├── JsonTreeRenderer.js # 交互式 JSON 树形渲染器
+│       └── index.js            # 模块导出入口
+├── tests/                      # 自动化测试套件
+│   ├── topic-matching.node.test.js  # MQTT 主题与通配符匹配测试
+│   ├── ui-shell.node.test.js        # 双 UI Shell 契约测试
+│   ├── json-tree.node.test.js       # JSON 解析与树节点 DOM 构建测试
+│   └── check-dist-ui-shell.mjs      # 构建产物校验脚本
+├── scripts/
+│   └── generate-window-html.mjs# window.html 自动生成脚本
+├── docs/                       # 架构设计与文档资产库
+│   ├── 00-requirements.md      # 已完成需求台账（已对齐至 v0.2.0）
+│   ├── 01-overview.md          # 产品概览与快捷键指南
+│   ├── 02-architecture.md      # 总体架构设计与消息数据流
+│   ├── 03-ui-components.md      # UI 组件库规范与视觉要求
+│   ├── 04-development-guide.md # 本地开发与 Chrome 扩展调试排错指南
+│   ├── 05-multiple-topics-plan.md # 多主题会话与通配符技术方案
+│   ├── 06-ui-shell-popup-vs-sidepanel.md # 双 UI Shell 架构设计与演进
+│   ├── 08-cicd-pipeline-plan.md # CI/CD 自动化流水线实施规划
+│   └── TODO.md                 # 后续待办与演进路线图
+├── mqtt_dist_extension/        # 本地生产构建输出目录（由 npm run build 生成，受 git 忽略）
+├── package.json
+└── vite.config.js
+```
+
+---
+
+## 📚 详细文档路由
+
+项目架构与设计细节收录在 `docs/` 目录下，可根据需要按需查阅：
+
+| 文档 | 说明 |
+| :--- | :--- |
+| [**需求完成台账** (`docs/00-requirements.md`)](docs/00-requirements.md) | 全量功能特性履约清单与验证记录 |
+| [**待办规划池** (`docs/TODO.md`)](docs/TODO.md) | 下一步功能演进路线与待办清单 |
+| [**系统架构设计** (`docs/02-architecture.md`)](docs/02-architecture.md) | MV3 消息流向、Topic 路由与模块边界设计 |
+| [**CI/CD 流水线规划** (`docs/08-cicd-pipeline-plan.md`)](docs/08-cicd-pipeline-plan.md) | GitHub Actions 双工作流配置标准与发版规范 |
+| [**多主题会话设计** (`docs/05-multiple-topics-plan.md`)](docs/05-multiple-topics-plan.md) | MQTT 通配符匹配算法与 Tab 会话管理机制 |
+| [**UI Shell 双模态设计** (`docs/06-ui-shell-popup-vs-sidepanel.md`)](docs/06-ui-shell-popup-vs-sidepanel.md) | Sidepanel 与 Window 孪生机制及历史抉择 |
+
+---
+
+## 🧪 质量与测试
+
+本项目采用原生 Node.js 内置测试断言进行轻量无依赖的自动化测试，执行命令：
 ```bash
-# 运行 Node.js 测试
-node tests/topic-matching.node.test.js
-
-# 在浏览器中打开测试（直接在浏览器中）
-open tests/topic-matching.test.html
+npm test
 ```
+**包含以下关键测试用例**：
+1. **MQTT 通配符匹配测试**：覆盖单层通配符（`+`）、多层通配符（`#`）、普通精确匹配及非法通配符场景。
+2. **UI Shell 孪生一致性测试**：确保 `src/sidepanel.html` 与 `src/window.html` 的结构关键属性保持同步。
+3. **JSON 树形渲染与解析测试**：验证 JSON 解析鲁棒性（支持前缀标签剔除、松散对象解析）、节点 DOM 渲染与折叠状态机制。
 
-### 重要说明
+---
 
-- 构建输出到 `dist/` 目录
-- 构建后通过 `chrome://extensions/` 加载扩展
-- MQTT 客户端清理至关重要——使用 `stopMqttClient()` 防止内存泄漏
-- 底部输入区域使用 `Ctrl+Enter` 发送消息
+## 🤝 贡献与规范
 
-## 贡献指南
+欢迎提交 Issue 或 Pull Request！在贡献代码时请遵循以下约定：
 
-我们欢迎各种形式的贡献！这是一个无框架依赖的原生 JavaScript 项目。
+1. **Vanilla JS 约束**：坚持无前端框架依赖（No React/Vue），保持纯粹原生 DOM 操作与现代 ES 语法。
+2. **UI 孪生原则**：所有 UI 结构的修改必须在 `src/sidepanel.html` 中进行，严禁直接手改 `src/window.html`；修改后请运行 `npm run generate:window`。
+3. **轻量后台**：`src/background.js` 严禁引入重度业务模块或 MQTT 库，仅负责生命周期与调度。
+4. **提交信息格式**：遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范（如 `feat: xxx`、`fix: xxx`、`docs: xxx`）。
 
-### 代码风格
+---
 
-- **原生 JavaScript**：无框架——使用直接 DOM 操作的纯 JavaScript
-- **现代 ES2022+**：使用 Chrome 扩展支持的现代 JavaScript 特性
-- **CSS**：样式在 `src/styles.css` 中定义，使用 CSS 自定义属性进行主题化
-- **格式化**：与现有代码库保持一致的缩进（JS/HTML 使用 2 个空格）
+## 📄 许可证
 
-### 提交信息格式
-
-遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
-
-```
-<type>(<scope>): <description>
-```
-
-**类型**：`feat`、`fix`、`chore`、`docs`、`refactor`、`test`、`perf`
-
-**示例**：
-```
-feat(mqtt): 添加对保留消息的支持
-fix: 处理网络变化时的重连
-chore: 更新 Vite 到 v5.2
-docs: 向 README 添加故障排除部分
-```
-
-### Pull Request 流程
-
-1. Fork 并创建一个描述性分支（如 `feat/add-mqtt-v5`）
-2. 测试您的更改并根据需要添加新测试
-3. 使用 `npm run build` 验证生产构建
-4. 包含清晰的更改描述
-5. 在 PR 描述中引用相关问题
-
-## 许可证
-
-```
-MIT License
-
-Copyright (c) 2025 WebSocket/MQTT Chrome Extension Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## 致谢
-
-本项目使用以下开源工具和库构建：
-
-- **[mqtt](https://github.com/mqttjs/MQTT.js)** – MQTT over WebSocket 客户端库
-- **[Vite](https://vitejs.dev/)** – 快速构建工具和开发服务器
-- **[Font Awesome](https://fontawesome.com/)** – 图标集
-- **[Inter](https://rsms.me/inter/)** – 主要 UI 字体
-- **[JetBrains Mono](https://www.jetbrains.com/lp/mono/)** – 等宽字体
-
-特别感谢 Chrome 扩展社区和 MQTT.js 维护者提供的优秀文档和工具。
+本项目基于 [MIT License](LICENSE) 协议开源。
